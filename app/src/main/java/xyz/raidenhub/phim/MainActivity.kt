@@ -10,6 +10,7 @@ import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.navigation.AppNavigation
+import xyz.raidenhub.phim.notification.EpisodeCheckWorker
 import xyz.raidenhub.phim.ui.theme.RaidenPhimTheme
 
 class MainActivity : ComponentActivity() {
@@ -18,11 +19,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // Init
+        // Init managers
         ApiClient.cacheDir = cacheDir
         FavoriteManager.init(this)
         WatchHistoryManager.init(this)
         SettingsManager.init(this)
+
+        // #34 — Init notification channel + schedule episode check
+        EpisodeCheckWorker.createChannel(this)
+        EpisodeCheckWorker.schedule(this)
 
         setContent {
             RaidenPhimTheme {

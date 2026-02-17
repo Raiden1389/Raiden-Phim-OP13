@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.7.0"
+        versionCode = 12
+        versionName = "1.9.0"
     }
 
     signingConfigs {
@@ -110,6 +110,9 @@ dependencies {
 
     // ═══ Coroutines ═══
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+
+    // ═══ WorkManager (#34 — Episode notifications) ═══
+    implementation("androidx.work:work-runtime-ktx:2.10.1")
 
     // ═══ Debug ═══
     debugImplementation("androidx.compose.ui:ui-tooling")

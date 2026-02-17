@@ -1,6 +1,55 @@
 # Raiden Phim — Changelog
 
-## v1.7.0 — 2026-02-18
+## v1.9.0 — 2026-02-18 (Anime Enhancements)
+
+### ✨ New Features
+- **🐉 Donghua Section** — Mục Hoạt Hình Trung Quốc trên tab Anime
+  - Tìm donghua thông qua search API với danh sách từ khóa curated (già thiên, đấu phá, tiên nghịch, vũ động càn khôn...)
+  - Tự động dedup theo anime ID, giới hạn 15 kết quả
+  - Hiển thị dạng LazyRow ngang giữa Trending và Mới Cập Nhật
+- **🔍 Genre Search** — Bấm genre chip → search API trả kết quả anime theo thể loại
+  - Loading indicator khi đang fetch
+  - Hiển thị grid 3 cột kết quả
+  - Message khi không tìm được kết quả
+- **Xem thêm ›** — Section headers có nút "Xem thêm" cho Trending, Mới Cập Nhật, Sắp Chiếu
+
+### 🔧 Technical
+- `AnimeRepository.getDonghua()` — search-based donghua fetch với curated keywords
+- `DonghuaSection` composable — self-contained với LaunchedEffect + loading state
+
+---
+
+## v1.8.0 — 2026-02-18 (Search & Anime)
+
+### ✨ New Features
+- **#10 Voice Search 🎤** — Nút micro trên search bar, nhận diện giọng nói tiếng Việt (`vi-VN`)
+- **#13 Search Autocomplete 🔍** — Gõ ≥ 2 ký tự → hiện dropdown gợi ý từ lịch sử + trending
+- **#17 IMDb Rating ⭐** — Hiện `⭐ IMDb X.X/10` trên trang chi tiết phim (via OMDB API)
+- **#40 Season Grouping 📺** — Tự phát hiện phim nhiều phần (Phần X/Season X), hiện horizontal scroll chọn phần
+- **#45 Anime Detail Screen 🎌** — Trang chi tiết riêng cho Anime từ Anime47 API
+  - Backdrop + badges (quality/type/rating/status)
+  - Genre chips, description expandable
+  - Episode list với play buttons
+  - API wrapper fix cho `/anime/info/{id}` response format
+
+---
+
+## v1.7.1 — 2026-02-18 (Hotfix)
+
+### 🐛 Bugfix
+- Fix crash English tab: `Expected BEGIN_OBJECT but was BEGIN_ARRAY`
+  - `/recent-movies` và `/recent-shows` trả raw array `[...]`, không phải `{"results": [...]}`
+  - Đổi return type sang `List<ConsumetItem>` + bỏ `.results` accessor
+
+### ✨ Enhancement
+- **Genre Chips hoạt động** — bấm thể loại Anime → filter hiển thị anime matching genre
+  - Selected chip highlight màu accent
+  - Grid 2 cột hiển thị kết quả filter
+  - Toggle on/off khi bấm lại
+
+---
+
+
 
 ### 🍿 Tab English — Phim Mỹ (MỚI)
 - Tích hợp **Consumet API** (self-hosted trên Vercel) + **FlixHQ** provider

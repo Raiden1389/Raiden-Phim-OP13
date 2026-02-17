@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -33,7 +34,11 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import xyz.raidenhub.phim.data.api.models.EpisodeServer
+import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.api.models.MovieDetail
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.data.local.FavoriteManager
@@ -98,6 +103,54 @@ fun DetailScreen(
             val continueItem = continueList.find { it.slug == slug }
             val continueEp = continueItem?.episode ?: 0
             val hasContinue = continueItem != null
+
+            // #17 — Fetch IMDb rating from OMDB API
+            var imdbRating by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(movie.originName, movie.name) {
+                kotlinx.coroutines.Dispatchers.IO.let { io ->
+                    kotlinx.coroutines.withContext(io) {
+                        try {
+                            val title = movie.originName.ifBlank { movie.name }
+                            val year = if (movie.year > 0) "&y=${movie.year}" else ""
+                            val url = "https://www.omdbapi.com/?apikey=2692d710&t=${java.net.URLEncoder.encode(title, "UTF-8")}$year"
+                            val client = OkHttpClient()
+                            val request = Request.Builder().url(url).build()
+                            val response = client.newCall(request).execute()
+                            val body = response.body?.string() ?: ""
+                            val json = JSONObject(body)
+                            if (json.optString("Response") == "True") {
+                                val rating = json.optString("imdbRating", "N/A")
+                                if (rating != "N/A") imdbRating = rating
+                            }
+                        } catch (_: Exception) { }
+                    }
+                }
+            }
+
+            // #40 — Season Grouping state (hoisted above LazyColumn)
+            val seasonRegex = remember { Regex("""[(\[（]?\s*(?:Phần|Season|Mùa|Part|SS)\s*(\d+)\s*[)\]）]?""", RegexOption.IGNORE_CASE) }
+            val baseName = remember(movie.name) {
+                movie.name.replace(seasonRegex, "").replace(Regex("""\s*\d+$"""), "").trim()
+            }
+            val currentSeason = remember(movie.name) {
+                seasonRegex.find(movie.name)?.groupValues?.get(1)?.toIntOrNull()
+            }
+            var relatedSeasons by remember { mutableStateOf<List<Movie>>(emptyList()) }
+            if (currentSeason != null && baseName.length >= 3) {
+                LaunchedEffect(baseName) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        MovieRepository.search(baseName)
+                            .onSuccess { results ->
+                                relatedSeasons = results.filter { m ->
+                                    val mBase = m.name.replace(seasonRegex, "").replace(Regex("""\s*\d+$"""), "").trim()
+                                    mBase.equals(baseName, ignoreCase = true) && m.slug != slug
+                                }.sortedBy {
+                                    seasonRegex.find(it.name)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                                }
+                            }
+                    }
+                }
+            }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize().background(C.Background)
@@ -182,6 +235,7 @@ fun DetailScreen(
                 item {
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         val infos = buildList {
+                            if (imdbRating != null) add("⭐ IMDb $imdbRating/10")
                             if (movie.year > 0) add("📅 ${movie.year}")
                             if (movie.country.isNotEmpty()) add("🌍 ${movie.country.joinToString { it.name }}")
                             if (movie.time.isNotBlank()) add("⏱ ${movie.time}")
@@ -277,6 +331,51 @@ fun DetailScreen(
                                 )
                             }
                         }
+                    }
+                }
+
+                // #40 — Season Grouping (state is hoisted above LazyColumn)
+                if (relatedSeasons.isNotEmpty()) {
+                    item {
+                        Text(
+                            "📺 Các phần khác (${relatedSeasons.size + 1} phần)",
+                            color = C.TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
+                        )
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Current season (highlighted)
+                            item {
+                                Text(
+                                    "Phần $currentSeason ★",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .background(C.Primary, RoundedCornerShape(20.dp))
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                            // Other seasons
+                            items(relatedSeasons) { season ->
+                                val sNum = seasonRegex.find(season.name)?.groupValues?.get(1) ?: "?"
+                                Text(
+                                    "Phần $sNum",
+                                    color = C.TextPrimary,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(20.dp))
+                                        .background(C.Surface)
+                                        .clickable { /* navigate to detail */ }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
 

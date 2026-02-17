@@ -1,6 +1,11 @@
 package xyz.raidenhub.phim.ui.screens.search
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -83,10 +88,15 @@ class SearchViewModel : ViewModel() {
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
 
+    // #13 — Search suggestions (live autocomplete from history + trending)
+    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
+    val suggestions = _suggestions.asStateFlow()
+
     private var searchJob: Job? = null
 
     fun search(query: String) {
         searchJob?.cancel()
+        updateSuggestions(query)
         if (query.length < 2) { _results.value = emptyList(); return }
         searchJob = viewModelScope.launch {
             delay(400) // debounce
@@ -97,13 +107,28 @@ class SearchViewModel : ViewModel() {
             _loading.value = false
         }
     }
+
+    private fun updateSuggestions(query: String) {
+        if (query.length < 2) { _suggestions.value = emptyList(); return }
+        val q = query.lowercase()
+        val history = SearchHistoryManager.history.value
+        val trending = TRENDING_KEYWORDS
+
+        // Combine history + trending, filter by prefix match
+        val combined = (history + trending)
+            .filter { it.lowercase().contains(q) && it.lowercase() != q }
+            .distinct()
+            .take(5)
+        _suggestions.value = combined
+    }
 }
 
 // ═══ Trending / Suggested Keywords ═══
 private val TRENDING_KEYWORDS = listOf(
     "Hành động", "Tình cảm", "Kinh dị", "Hoạt hình",
     "Võ thuật", "Hài hước", "Phiêu lưu", "Ma",
-    "Chiến tranh", "Viễn tưởng"
+    "Chiến tranh", "Viễn tưởng", "Siêu anh hùng", "Thám tử",
+    "Cổ trang", "Anime", "Gia đình", "Lãng mạn"
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -115,23 +140,50 @@ fun SearchScreen(
     var query by remember { mutableStateOf("") }
     val results by vm.results.collectAsState()
     val loading by vm.loading.collectAsState()
+    val suggestions by vm.suggestions.collectAsState()
     val context = LocalContext.current
     val history by SearchHistoryManager.history.collectAsState()
 
     // Init history
     LaunchedEffect(Unit) { SearchHistoryManager.init(context) }
 
+    // #10 — Voice search launcher
+    val voiceLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!spoken.isNullOrBlank()) {
+                query = spoken
+                vm.search(spoken)
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().background(C.Background).padding(top = 8.dp)) {
-        // Search bar with clear button
+        // Search bar with voice + clear buttons
         OutlinedTextField(
             value = query,
             onValueChange = { query = it; vm.search(it) },
             placeholder = { Text("Tìm phim...", color = C.TextMuted) },
             leadingIcon = { Icon(Icons.Default.Search, "Search", tint = C.TextSecondary) },
             trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { query = ""; vm.search("") }) {
-                        Icon(Icons.Default.Clear, "Clear", tint = C.TextSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // #10 — Voice search button
+                    IconButton(onClick = {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "vi-VN")
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Nói tên phim...")
+                        }
+                        try { voiceLauncher.launch(intent) } catch (_: Exception) { }
+                    }) {
+                        Text("🎤", fontSize = 18.sp)
+                    }
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { query = ""; vm.search("") }) {
+                            Icon(Icons.Default.Clear, "Clear", tint = C.TextSecondary)
+                        }
                     }
                 }
             },
@@ -148,6 +200,31 @@ fun SearchScreen(
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
         )
+
+        // #13 — Autocomplete suggestions dropdown
+        if (suggestions.isNotEmpty() && query.length >= 2 && results.isEmpty() && !loading) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .clip(RoundedCornerShape(0.dp, 0.dp, 12.dp, 12.dp))
+                    .background(C.Surface)
+            ) {
+                suggestions.forEach { suggestion ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { query = suggestion; vm.search(suggestion) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.Search, null, tint = C.TextMuted, modifier = Modifier.size(16.dp))
+                        Text(suggestion, color = C.TextPrimary, fontSize = 14.sp)
+                    }
+                }
+            }
+        }
 
         if (query.length < 2) {
             // #9 — Search history

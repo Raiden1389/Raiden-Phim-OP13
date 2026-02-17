@@ -28,5 +28,6 @@ sealed class Screen(val route: String) {
         fun createRoute(episodeId: String, mediaId: String, filmName: String) =
             "english_player/${java.net.URLEncoder.encode(episodeId, "UTF-8")}/${java.net.URLEncoder.encode(mediaId, "UTF-8")}/${java.net.URLEncoder.encode(filmName, "UTF-8")}"
     }
+    data object EnglishSearch : Screen("english_search")
 }
 
