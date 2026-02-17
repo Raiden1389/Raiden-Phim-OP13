@@ -1,5 +1,57 @@
 # Raiden Phim — Changelog
 
+## v1.7.0 — 2026-02-18
+
+### 🍿 Tab English — Phim Mỹ (MỚI)
+- Tích hợp **Consumet API** (self-hosted trên Vercel) + **FlixHQ** provider
+- Hero banner full-width với gradient overlay
+- **🔥 Trending** — Phim hot nhất
+- **🎬 Recent Movies** — Phim lẻ mới
+- **📺 Recent TV Shows** — Phim bộ mới
+- Shimmer loading + Error state với retry
+- **Detail Screen** — Cover image, info badges, genre, cast, description
+- **Season Selector** — Filter chips cho multi-season shows
+- **Episode List** — Tap để play
+- **English Player** — ExoPlayer với M3U8 streaming
+
+### 🌐 Multi-Source Vietnamese Subtitle (MỚI)
+- **5 nguồn sub chạy song song:**
+  - 🟢 FlixHQ (Consumet) — sub kèm stream sẵn
+  - 🟢 SubDL — REST API, sub Việt tốt
+  - 🟢 SubSource — REST API, kho sub lớn
+  - 🟢 Subscene — HTML scrape, kho sub Việt lớn nhất
+  - ⏳ OpenSubtitles — sẵn code, cần API key
+- **Auto-select Vietnamese** khi có sub Việt
+- **Subtitle Picker** — Bottom sheet chọn sub [🇻🇳 VI] [🇬🇧 EN]
+- Sort: Vietnamese ưu tiên trước → English → others
+
+### 🏗️ Architecture
+- `ConsumetApi.kt` — Retrofit interface (trending, recent, search, info, stream)
+- `ConsumetModels.kt` — Data models (Item, Detail, Episode, Stream, Source, Subtitle)
+- `ConsumetRepository.kt` — Repository với parallel fetch
+- `SubtitleApis.kt` — SubDL + OpenSubtitles + SubSource Retrofit interfaces
+- `SubtitleModels.kt` — Unified SubtitleResult + provider-specific models
+- `SubtitleRepository.kt` — Multi-source aggregator (5 providers)
+- `EnglishScreen.kt` — Tab UI (484 lines)
+- `EnglishDetailScreen.kt` — Detail + Season selector + Episode list
+- `EnglishPlayerScreen.kt` — ExoPlayer + subtitle picker + landscape mode
+- `Screen.kt` — 3 routes mới (English, EnglishDetail, EnglishPlayer)
+- `AppNavigation.kt` — Tab 🍿 + routes wired up
+
+---
+
+## v1.6.1 — 2026-02-17 (Hotfix)
+
+### 🐛 Bugfix
+- Fix crash Anime tab: `expected BEGIN_ARRAY but was BEGIN_OBJECT`
+  - `latest-episode-posts` và `upcoming` trả về `{"data": [...]}` wrapper, không phải array trực tiếp
+  - Thêm `Anime47DataWrapper` class để unwrap response
+- Fix ảnh poster Anime không hiển thị:
+  - Trending dùng `posterUrl`, Latest dùng `image` — cập nhật `displayImage` fallback chain: `poster → posterUrl → image`
+- Thêm field `year`, `rank` cho `Anime47Item`
+
+---
+
 ## v1.6.0 — 2026-02-17
 
 ### 🎌 Tab Anime (MỚI)

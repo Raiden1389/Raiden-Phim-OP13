@@ -60,4 +60,13 @@ object ApiClient {
             .build()
             .create(Anime47Api::class.java)
     }
+
+    val consumet: ConsumetApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(Constants.CONSUMET_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ConsumetApi::class.java)
+    }
 }

@@ -29,6 +29,9 @@ import xyz.raidenhub.phim.ui.screens.history.WatchHistoryScreen
 import xyz.raidenhub.phim.ui.screens.home.HomeScreen
 import xyz.raidenhub.phim.ui.screens.player.PlayerScreen
 import xyz.raidenhub.phim.ui.screens.search.SearchScreen
+import xyz.raidenhub.phim.ui.screens.english.EnglishScreen
+import xyz.raidenhub.phim.ui.screens.english.EnglishDetailScreen
+import xyz.raidenhub.phim.ui.screens.english.EnglishPlayerScreen
 import xyz.raidenhub.phim.ui.screens.settings.SettingsScreen
 import xyz.raidenhub.phim.ui.theme.C
 
@@ -47,7 +50,8 @@ fun AppNavigation() {
     // Hide bottom bar on player/detail
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route, Screen.Search.route, Screen.Favorites.route,
-        Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route
+        Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route,
+        Screen.English.route
     )
 
     val navColors = NavigationBarItemDefaults.colors(
@@ -88,6 +92,20 @@ fun AppNavigation() {
                         },
                         icon = { Text("🎌", fontSize = 20.sp) },
                         label = { Text("Anime", fontSize = 11.sp) },
+                        colors = navColors
+                    )
+                    // 🍿 English tab
+                    NavigationBarItem(
+                        selected = currentRoute == Screen.English.route,
+                        onClick = {
+                            navController.navigate(Screen.English.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = { Text("🍿", fontSize = 20.sp) },
+                        label = { Text("English", fontSize = 11.sp) },
                         colors = navColors
                     )
                     NavigationBarItem(
@@ -157,6 +175,60 @@ fun AppNavigation() {
                     onAnimeClick = { id, slug ->
                         navController.navigate(Screen.AnimeDetail.createRoute(id, slug))
                     }
+                )
+            }
+
+            // 🍿 English tab
+            composable(Screen.English.route) {
+                EnglishScreen(
+                    onMovieClick = { mediaId ->
+                        navController.navigate(Screen.EnglishDetail.createRoute(mediaId))
+                    }
+                )
+            }
+
+            // English Detail → show detail for Consumet media
+            composable(
+                Screen.EnglishDetail.route,
+                arguments = listOf(navArgument("mediaId") { type = NavType.StringType })
+            ) { entry ->
+                val mediaId = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("mediaId") ?: "", "UTF-8"
+                )
+                EnglishDetailScreen(
+                    mediaId = mediaId,
+                    onBack = { navController.popBackStack() },
+                    onPlay = { episodeId, mId ->
+                        navController.navigate(
+                            Screen.EnglishPlayer.createRoute(episodeId, mId, "")
+                        )
+                    }
+                )
+            }
+
+            // 🍿 English Player
+            composable(
+                Screen.EnglishPlayer.route,
+                arguments = listOf(
+                    navArgument("episodeId") { type = NavType.StringType },
+                    navArgument("mediaId") { type = NavType.StringType },
+                    navArgument("filmName") { type = NavType.StringType }
+                )
+            ) { entry ->
+                val episodeId = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("episodeId") ?: "", "UTF-8"
+                )
+                val mId = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("mediaId") ?: "", "UTF-8"
+                )
+                val filmName = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("filmName") ?: "", "UTF-8"
+                )
+                EnglishPlayerScreen(
+                    episodeId = episodeId,
+                    mediaId = mId,
+                    filmName = filmName,
+                    onBack = { navController.popBackStack() }
                 )
             }
 

@@ -301,7 +301,7 @@ fun SettingsScreen() {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "📱 RaidenPhim v1.6.0",
+                "📱 RaidenPhim v1.6.1",
                 color = C.TextMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth()

@@ -30,6 +30,19 @@
 - [ ] #10 Voice search
 - [ ] #13 Search suggestion autocomplete (API)
 - [ ] #17 Rating/Score hiện IMDb
-- [ ] #27 Subtitle support
+- [ ] #27 Multi-Source Vietnamese Subtitle — tự tìm sub Việt cho phim English
+  - Source 1: **Consumet** (sub English/multi-lang có sẵn từ FlixHQ)
+  - Source 2: **OpenSubtitles.com** REST API (free 20 dl/ngày, 200 VIP)
+  - Source 3: **Subdl.com** REST API (miễn phí, có sub Việt)
+  - Source 4: **Subscene** scrape (kho sub Việt lớn nhất)
+  - Source 5: **Podnapisi.net** API (backup)
+  - Flow: Search tên phim + năm → query tất cả source → merge → user chọn [🇬🇧 EN] [🇻🇳 VI]
+  - ExoPlayer: load .srt/.vtt → SubtitleConfiguration
 - [ ] #31 Dark/Light theme toggle
 - [ ] #34 Notification tập mới
+- [ ] #40 Season Grouping — Gộp multi-season (VD: Supernatural 15 phần → 1 trang, Season Picker tabs)
+  - Parse pattern `(Phần X)` / `(Season X)` từ tên phim
+  - Search API tìm tất cả season cùng tên gốc
+  - UI: Season tabs `[S1] [S2] ... [S15]` + episode list tương ứng
+- [x] #41 English Tab (Consumet/FlixHQ) — Tab 🍿 English với Trending, Recent Movies, Recent Shows
+- [ ] #42 Consumet Player Integration — stream M3U8 + subtitle cho phim English

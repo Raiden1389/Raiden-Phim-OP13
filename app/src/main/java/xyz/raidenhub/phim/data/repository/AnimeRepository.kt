@@ -21,8 +21,8 @@ object AnimeRepository {
         coroutineScope {
             val heroD = async { api.getHero() }
             val trendD = async { api.getTrending() }
-            val latestD = async { api.getLatestEpisodes() }
-            val upD = async { api.getUpcoming() }
+            val latestD = async { api.getLatestEpisodes().data }
+            val upD = async { api.getUpcoming().data }
             val genreD = async {
                 api.getGenres().filter {
                     it.category in listOf("genres", "demographics") && it.postsCount > 0

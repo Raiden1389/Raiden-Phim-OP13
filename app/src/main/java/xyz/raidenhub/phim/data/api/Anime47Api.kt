@@ -3,6 +3,7 @@ package xyz.raidenhub.phim.data.api
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
+import xyz.raidenhub.phim.data.api.models.Anime47DataWrapper
 import xyz.raidenhub.phim.data.api.models.Anime47Detail
 import xyz.raidenhub.phim.data.api.models.Anime47Genre
 import xyz.raidenhub.phim.data.api.models.Anime47Item
@@ -18,10 +19,10 @@ interface Anime47Api {
     suspend fun getTrending(@Query("lang") lang: String = "vi"): List<Anime47Item>
 
     @GET("home-page/latest-episode-posts")
-    suspend fun getLatestEpisodes(@Query("lang") lang: String = "vi"): List<Anime47Item>
+    suspend fun getLatestEpisodes(@Query("lang") lang: String = "vi"): Anime47DataWrapper
 
     @GET("home-page/upcoming")
-    suspend fun getUpcoming(@Query("lang") lang: String = "vi"): List<Anime47Item>
+    suspend fun getUpcoming(@Query("lang") lang: String = "vi"): Anime47DataWrapper
 
     // ═══ Search ═══
     @GET("search/live/")

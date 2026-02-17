@@ -10,6 +10,7 @@ data class Anime47Item(
     @SerializedName("slug") val slug: String = "",
     @SerializedName("link") val link: String = "",
     @SerializedName("poster") val poster: String = "",
+    @SerializedName("posterUrl") val posterUrl: String = "",
     @SerializedName("backdropImage") val backdropImage: String = "",
     @SerializedName("image") val image: String = "",
     @SerializedName("description") val description: String = "",
@@ -23,15 +24,22 @@ data class Anime47Item(
     @SerializedName("episodes") val episodes: String? = null,
     @SerializedName("current_episode") val currentEpisode: String? = null,
     @SerializedName("season") val season: String = "",
+    @SerializedName("year") val year: String = "",
+    @SerializedName("rank") val rank: Int? = null,
     @SerializedName("legacy_id") val legacyId: Int? = null
 ) {
-    val displayImage: String get() = poster.ifBlank { image }
+    val displayImage: String get() = poster.ifBlank { posterUrl.ifBlank { image } }
     val episodeLabel: String get() {
         val cur = currentEpisode ?: return ""
         val total = episodes ?: return "Tập $cur"
         return "Tập $cur/$total"
     }
 }
+
+// Wrapper for endpoints that return {"data": [...]}
+data class Anime47DataWrapper(
+    @SerializedName("data") val data: List<Anime47Item> = emptyList()
+)
 
 // Search response
 data class Anime47SearchResponse(
