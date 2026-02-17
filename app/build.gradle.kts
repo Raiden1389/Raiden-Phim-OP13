@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.9.0"
+        versionCode = 13
+        versionName = "1.9.1"
     }
 
     signingConfigs {
@@ -89,6 +89,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.9.2")
     implementation("androidx.media3:media3-exoplayer-hls:1.9.2")
     implementation("androidx.media3:media3-datasource:1.9.2")
+    implementation("androidx.media3:media3-datasource-okhttp:1.9.2")
     implementation("androidx.media3:media3-ui:1.9.2")
 
     // ═══ Coil 3 — Image loading ═══

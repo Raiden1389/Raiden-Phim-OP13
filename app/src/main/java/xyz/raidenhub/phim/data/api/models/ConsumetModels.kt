@@ -44,6 +44,7 @@ data class ConsumetEpisode(
 )
 
 data class ConsumetStreamResponse(
+    @SerializedName("headers") val headers: Map<String, String> = emptyMap(),
     @SerializedName("sources") val sources: List<ConsumetSource> = emptyList(),
     @SerializedName("subtitles") val subtitles: List<ConsumetSubtitle> = emptyList()
 )

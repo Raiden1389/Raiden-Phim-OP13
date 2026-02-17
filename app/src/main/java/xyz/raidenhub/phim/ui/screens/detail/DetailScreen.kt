@@ -73,6 +73,7 @@ fun DetailScreen(
     slug: String,
     onBack: () -> Unit,
     onPlay: (slug: String, server: Int, episode: Int) -> Unit,
+    onSeasonClick: (slug: String) -> Unit = {},
     vm: DetailViewModel = viewModel()
 ) {
     LaunchedEffect(slug) { vm.load(slug) }
@@ -370,7 +371,7 @@ fun DetailScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(20.dp))
                                         .background(C.Surface)
-                                        .clickable { /* navigate to detail */ }
+                                        .clickable { onSeasonClick(season.slug) }
                                         .padding(horizontal = 14.dp, vertical = 8.dp)
                                 )
                             }

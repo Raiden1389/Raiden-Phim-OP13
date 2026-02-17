@@ -6,8 +6,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
-import android.view.View
-import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.OptIn
@@ -32,6 +30,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -100,19 +101,19 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = context as Activity
 
-    // Force landscape + fullscreen
+    // Force landscape + fullscreen (modern API)
     LaunchedEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        activity.window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
+        val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 

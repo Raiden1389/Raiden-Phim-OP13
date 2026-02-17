@@ -262,7 +262,8 @@ fun AppNavigation() {
                 DetailScreen(
                     slug = slug,
                     onBack = { navController.popBackStack() },
-                    onPlay = { s, sv, ep -> navController.navigate(Screen.Player.createRoute(s, sv, ep)) }
+                    onPlay = { s, sv, ep -> navController.navigate(Screen.Player.createRoute(s, sv, ep)) },
+                    onSeasonClick = { seasonSlug -> navController.navigate(Screen.Detail.createRoute(seasonSlug)) }
                 )
             }
 

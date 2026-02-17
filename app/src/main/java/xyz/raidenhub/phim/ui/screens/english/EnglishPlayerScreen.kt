@@ -3,7 +3,6 @@ package xyz.raidenhub.phim.ui.screens.english
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.net.Uri
-import android.view.View
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -25,6 +24,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,11 +35,15 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import xyz.raidenhub.phim.data.api.models.ConsumetEpisode
 import xyz.raidenhub.phim.data.api.models.SubtitleResult
 import xyz.raidenhub.phim.data.repository.ConsumetRepository
@@ -48,6 +54,8 @@ import xyz.raidenhub.phim.ui.theme.C
 class EnglishPlayerViewModel : ViewModel() {
     private val _streamUrl = MutableStateFlow("")
     val streamUrl = _streamUrl.asStateFlow()
+    private val _refererUrl = MutableStateFlow("")
+    val refererUrl = _refererUrl.asStateFlow()
     private val _subtitles = MutableStateFlow<List<SubtitleResult>>(emptyList())
     val subtitles = _subtitles.asStateFlow()
     private val _title = MutableStateFlow("")
@@ -71,6 +79,9 @@ class EnglishPlayerViewModel : ViewModel() {
             // Fetch stream
             ConsumetRepository.getStreamLinks(episodeId, mediaId)
                 .onSuccess { stream ->
+                    // Save Referer header for ExoPlayer
+                    _refererUrl.value = stream.headers["Referer"] ?: ""
+
                     // Get best source (prefer auto/highest quality M3U8)
                     val bestSource = stream.sources
                         .sortedByDescending { s ->
@@ -126,21 +137,19 @@ fun EnglishPlayerScreen(
     val context = LocalContext.current
     val activity = context as Activity
 
-    // Force landscape + fullscreen
+    // Force landscape + fullscreen (modern API)
     LaunchedEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        @Suppress("DEPRECATION")
-        activity.window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-        )
+        val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            @Suppress("DEPRECATION")
-            activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -150,6 +159,7 @@ fun EnglishPlayerScreen(
     }
 
     val streamUrl by vm.streamUrl.collectAsState()
+    val refererUrl by vm.refererUrl.collectAsState()
     val subtitles by vm.subtitles.collectAsState()
     val title by vm.title.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
@@ -167,11 +177,19 @@ fun EnglishPlayerScreen(
         }
     }
 
-    // ExoPlayer
-    val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
+    // ExoPlayer with Referer header support
+    val player = remember(refererUrl) {
+        val builder = ExoPlayer.Builder(context)
+        if (refererUrl.isNotBlank()) {
+            val okClient = OkHttpClient.Builder().build()
+            val dataSourceFactory = OkHttpDataSource.Factory(okClient)
+                .setDefaultRequestProperties(mapOf(
+                    "Referer" to refererUrl,
+                    "Origin" to refererUrl.substringBefore("/embed")
+                ))
+            builder.setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
         }
+        builder.build().apply { playWhenReady = true }
     }
 
     DisposableEffect(Unit) {
@@ -179,7 +197,7 @@ fun EnglishPlayerScreen(
     }
 
     // Set media when stream URL loaded
-    LaunchedEffect(streamUrl, selectedSubtitleIndex) {
+    LaunchedEffect(streamUrl, selectedSubtitleIndex, refererUrl) {
         if (streamUrl.isBlank()) return@LaunchedEffect
 
         val subtitleConfigs = if (selectedSubtitleIndex >= 0 && selectedSubtitleIndex < subtitles.size) {

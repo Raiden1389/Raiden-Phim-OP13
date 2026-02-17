@@ -1,5 +1,25 @@
 # Raiden Phim — Changelog
 
+## v1.9.1 — 2026-02-18 (Bugfix & Performance)
+
+### 🐛 Bugfix
+- **Player Fullscreen** — Thay thế API deprecated `SYSTEM_UI_FLAG_*` bằng `WindowInsetsControllerCompat` cho cả Vietnamese và English player
+- **English Video Loading** — Fix lỗi 403 khi load video: parse `Referer` header từ Consumet API response, dùng `OkHttpDataSource` gửi Referer + Origin cho ExoPlayer
+- **Season Navigation** — Click vào chip "Phần X" trên DetailScreen giờ navigate đúng đến phần đó (trước đó handler rỗng)
+
+### ⚡ Performance
+- **Consumet API Optimization** — Trim 11 providers thừa (anime, manga, books, comics...), chỉ giữ FlixHQ → giảm bundle size, cold start nhanh hơn
+- **Region Singapore** — Deploy Consumet API tại `sin1` (Singapore) thay vì US East → giảm ~200ms latency
+- **Cron Keep-Warm** — Ping API mỗi 5 phút → gần như không còn cold start
+
+### 🔧 Technical
+- Thêm dependency `media3-datasource-okhttp:1.9.2`
+- `ConsumetStreamResponse` thêm field `headers: Map<String, String>`
+- `EnglishPlayerViewModel` thêm `refererUrl` state
+- `DetailScreen` thêm callback `onSeasonClick`
+
+---
+
 ## v1.9.0 — 2026-02-18 (Anime Enhancements)
 
 ### ✨ New Features
