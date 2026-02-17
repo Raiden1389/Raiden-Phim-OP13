@@ -19,8 +19,8 @@ object ConsumetRepository {
     suspend fun getHomeData(): Result<EnglishHomeData> = safeCall {
         coroutineScope {
             val trendD = async { api.getTrending().results }
-            val moviesD = async { api.getRecentMovies().results }
-            val showsD = async { api.getRecentShows().results }
+            val moviesD = async { api.getRecentMovies() }
+            val showsD = async { api.getRecentShows() }
             EnglishHomeData(trendD.await(), moviesD.await(), showsD.await())
         }
     }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +31,8 @@ import xyz.raidenhub.phim.ui.theme.C
 
 @Composable
 fun EnglishScreen(
-    onMovieClick: (String) -> Unit
+    onMovieClick: (String) -> Unit,
+    onSearch: () -> Unit = {}
 ) {
     var homeData by remember { mutableStateOf<ConsumetRepository.EnglishHomeData?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -55,14 +57,15 @@ fun EnglishScreen(
                     .onFailure { e -> error = e.message; isLoading = false }
             }
         }
-        homeData != null -> EnglishContent(homeData!!, onMovieClick)
+        homeData != null -> EnglishContent(homeData!!, onMovieClick, onSearch)
     }
 }
 
 @Composable
 private fun EnglishContent(
     data: ConsumetRepository.EnglishHomeData,
-    onMovieClick: (String) -> Unit
+    onMovieClick: (String) -> Unit,
+    onSearch: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(C.Background),
@@ -77,13 +80,21 @@ private fun EnglishContent(
 
         // ═══ Header ═══
         item {
-            Text(
-                "🍿 English Movies & TV",
-                color = C.TextPrimary,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "🍿 English Movies & TV",
+                    color = C.TextPrimary,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(onClick = onSearch) {
+                    Icon(Icons.Default.Search, "Search", tint = C.TextPrimary)
+                }
+            }
         }
 
         // ═══ Trending Row ═══

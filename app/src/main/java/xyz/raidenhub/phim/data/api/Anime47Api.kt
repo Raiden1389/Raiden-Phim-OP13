@@ -4,7 +4,7 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import xyz.raidenhub.phim.data.api.models.Anime47DataWrapper
-import xyz.raidenhub.phim.data.api.models.Anime47Detail
+import xyz.raidenhub.phim.data.api.models.Anime47DetailWrapper
 import xyz.raidenhub.phim.data.api.models.Anime47Genre
 import xyz.raidenhub.phim.data.api.models.Anime47Item
 import xyz.raidenhub.phim.data.api.models.Anime47SearchResponse
@@ -40,5 +40,5 @@ interface Anime47Api {
     suspend fun getAnimeDetail(
         @Path("id") id: Int,
         @Query("lang") lang: String = "vi"
-    ): Anime47Detail
+    ): Anime47DetailWrapper
 }

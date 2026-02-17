@@ -4,6 +4,7 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 import xyz.raidenhub.phim.data.api.models.ConsumetDetail
+import xyz.raidenhub.phim.data.api.models.ConsumetItem
 import xyz.raidenhub.phim.data.api.models.ConsumetSearchResponse
 import xyz.raidenhub.phim.data.api.models.ConsumetStreamResponse
 
@@ -14,10 +15,10 @@ interface ConsumetApi {
     suspend fun getTrending(@Query("page") page: Int = 1): ConsumetSearchResponse
 
     @GET("movies/flixhq/recent-movies")
-    suspend fun getRecentMovies(@Query("page") page: Int = 1): ConsumetSearchResponse
+    suspend fun getRecentMovies(@Query("page") page: Int = 1): List<ConsumetItem>
 
     @GET("movies/flixhq/recent-shows")
-    suspend fun getRecentShows(@Query("page") page: Int = 1): ConsumetSearchResponse
+    suspend fun getRecentShows(@Query("page") page: Int = 1): List<ConsumetItem>
 
     // ═══ Search ═══
     @GET("movies/flixhq/{query}")

@@ -1,5 +1,6 @@
 package xyz.raidenhub.phim.ui.screens.anime
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +70,26 @@ private fun AnimeContent(
     data: AnimeRepository.AnimeHomeData,
     onAnimeClick: (Int, String) -> Unit
 ) {
+    var selectedGenre by remember { mutableStateOf<String?>(null) }
+    var genreResults by remember { mutableStateOf<List<Anime47Item>>(emptyList()) }
+    var genreLoading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // Fetch anime by genre via search API
+    LaunchedEffect(selectedGenre) {
+        if (selectedGenre == null) {
+            genreResults = emptyList()
+            return@LaunchedEffect
+        }
+        genreLoading = true
+        AnimeRepository.search(selectedGenre!!).onSuccess { results ->
+            genreResults = results
+        }.onFailure {
+            genreResults = emptyList()
+        }
+        genreLoading = false
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(C.Background),
         contentPadding = PaddingValues(bottom = 80.dp)
@@ -91,8 +112,65 @@ private fun AnimeContent(
             )
         }
 
+        // ═══ Genre Chips (moved to top for discoverability) ═══
+        if (data.genres.isNotEmpty()) {
+            item {
+                SectionHeader("🏷️ Thể Loại")
+                GenreChips(
+                    genres = data.genres,
+                    selectedGenre = selectedGenre,
+                    onGenreClick = { genre ->
+                        selectedGenre = if (selectedGenre == genre.name) null else genre.name
+                    }
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+        }
+
+        // ═══ Genre Results (from search API) ═══
+        if (selectedGenre != null) {
+            if (genreLoading) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(32.dp))
+                    }
+                }
+            } else if (genreResults.isNotEmpty()) {
+                item {
+                    SectionHeader("📂 $selectedGenre (${genreResults.size} kết quả)")
+                }
+                items(genreResults.chunked(3)) { row ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        row.forEach { anime ->
+                            Box(modifier = Modifier.weight(1f)) {
+                                AnimeCard(anime, onAnimeClick)
+                            }
+                        }
+                        repeat(3 - row.size) {
+                            Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Không tìm thấy anime thể loại \"$selectedGenre\"",
+                        color = C.TextSecondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
+
         // ═══ Trending Row ═══
-        if (data.trending.isNotEmpty()) {
+        if (data.trending.isNotEmpty() && selectedGenre == null) {
             item {
                 SectionHeader("🔥 Trending")
                 LazyRow(
@@ -106,8 +184,15 @@ private fun AnimeContent(
             }
         }
 
+        // ═══ 🐉 Donghua (Hoạt Hình Trung Quốc) ═══
+        if (selectedGenre == null) {
+            item {
+                DonghuaSection(onAnimeClick)
+            }
+        }
+
         // ═══ Latest Episodes Row ═══
-        if (data.latest.isNotEmpty()) {
+        if (data.latest.isNotEmpty() && selectedGenre == null) {
             item {
                 Spacer(Modifier.height(16.dp))
                 SectionHeader("📺 Mới Cập Nhật")
@@ -123,7 +208,7 @@ private fun AnimeContent(
         }
 
         // ═══ Upcoming Row ═══
-        if (data.upcoming.isNotEmpty()) {
+        if (data.upcoming.isNotEmpty() && selectedGenre == null) {
             item {
                 Spacer(Modifier.height(16.dp))
                 SectionHeader("🗓️ Sắp Ra Mắt")
@@ -135,15 +220,6 @@ private fun AnimeContent(
                         AnimeCard(anime, onAnimeClick)
                     }
                 }
-            }
-        }
-
-        // ═══ Genre Chips ═══
-        if (data.genres.isNotEmpty()) {
-            item {
-                Spacer(Modifier.height(20.dp))
-                SectionHeader("🏷️ Thể Loại")
-                GenreChips(data.genres)
             }
         }
 
@@ -344,7 +420,11 @@ private fun FeaturedCard(anime: Anime47Item, onClick: (Int, String) -> Unit) {
 }
 
 @Composable
-private fun GenreChips(genres: List<Anime47Genre>) {
+private fun GenreChips(
+    genres: List<Anime47Genre>,
+    selectedGenre: String? = null,
+    onGenreClick: (Anime47Genre) -> Unit = {}
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -352,18 +432,54 @@ private fun GenreChips(genres: List<Anime47Genre>) {
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        genres.take(15).forEach { genre ->
+        genres.take(20).forEach { genre ->
+            val isSelected = selectedGenre == genre.name
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = C.Surface,
-                modifier = Modifier.clickable { /* TODO: filter by genre */ }
+                color = if (isSelected) C.Accent else C.Surface,
+                modifier = Modifier.clickable { onGenreClick(genre) }
             ) {
                 Text(
                     genre.name,
-                    color = C.TextPrimary,
+                    color = if (isSelected) Color.White else C.TextPrimary,
                     fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DonghuaSection(onAnimeClick: (Int, String) -> Unit) {
+    var donghuaList by remember { mutableStateOf<List<Anime47Item>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        AnimeRepository.getDonghua().onSuccess { list ->
+            donghuaList = list
+        }
+        isLoading = false
+    }
+
+    if (isLoading) {
+        // Shimmer placeholder
+        Box(
+            Modifier.fillMaxWidth().padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(24.dp))
+        }
+    } else if (donghuaList.isNotEmpty()) {
+        Spacer(Modifier.height(16.dp))
+        SectionHeader("🐉 Hoạt Hình Trung Quốc")
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(donghuaList, key = { it.id }) { anime ->
+                AnimeCard(anime, onAnimeClick)
             }
         }
     }

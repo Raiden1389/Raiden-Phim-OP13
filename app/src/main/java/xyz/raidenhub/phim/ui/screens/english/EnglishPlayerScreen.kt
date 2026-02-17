@@ -188,8 +188,7 @@ fun EnglishPlayerScreen(
                 listOf(
                     MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub.url))
                         .setMimeType(
-                            if (sub.url.endsWith(".vtt")) MimeTypes.TEXT_VTT
-                            else MimeTypes.APPLICATION_SUBRIP
+                            xyz.raidenhub.phim.util.SubtitleConverter.getMimeType(sub.url)
                         )
                         .setLanguage(sub.language)
                         .setLabel(sub.displayName)

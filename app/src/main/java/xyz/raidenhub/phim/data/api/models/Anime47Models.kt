@@ -60,6 +60,11 @@ data class Anime47Genre(
     @SerializedName("posts_count") val postsCount: Int = 0
 )
 
+// Detail response wrapper — API returns {"data": {...}}
+data class Anime47DetailWrapper(
+    @SerializedName("data") val data: Anime47Detail = Anime47Detail()
+)
+
 // Detail response
 @Immutable
 data class Anime47Detail(
@@ -76,14 +81,22 @@ data class Anime47Detail(
     @SerializedName("duration") val duration: String = "",
     @SerializedName("releaseDate") val releaseDate: String = "",
     @SerializedName("status") val status: String = "",
+    @SerializedName("views") val views: Int = 0,
     @SerializedName("latestEpisodes") val latestEpisodes: List<Anime47Episode> = emptyList(),
-    @SerializedName("episodes") val episodes: Any? = null  // can be map or list
+    @SerializedName("episodes") val episodes: Any? = null,  // can be map or list
+    @SerializedName("animeGroups") val animeGroups: Any? = null,
+    @SerializedName("characters") val characters: Any? = null,
+    @SerializedName("score") val score: Int = 0,
+    @SerializedName("year") val year: Int = 0
 )
 
 @Immutable
 data class Anime47Episode(
     @SerializedName("id") val id: Int = 0,
+    @SerializedName("title") val title: String = "",
     @SerializedName("name") val name: String = "",
+    @SerializedName("episodeNumber") val episodeNumber: Int = 0,
     @SerializedName("slug") val slug: String = "",
-    @SerializedName("number") val number: Int = 0
+    @SerializedName("number") val number: Int = 0,
+    @SerializedName("link") val link: String = ""
 )

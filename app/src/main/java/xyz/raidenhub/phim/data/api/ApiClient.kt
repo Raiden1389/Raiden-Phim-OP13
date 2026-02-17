@@ -61,10 +61,19 @@ object ApiClient {
             .create(Anime47Api::class.java)
     }
 
+    // Longer timeout for Consumet (Vercel cold starts)
+    private val consumetClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
     val consumet: ConsumetApi by lazy {
         Retrofit.Builder()
             .baseUrl(Constants.CONSUMET_BASE_URL)
-            .client(okHttpClient)
+            .client(consumetClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ConsumetApi::class.java)

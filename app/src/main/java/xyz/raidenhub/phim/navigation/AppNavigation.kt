@@ -183,7 +183,8 @@ fun AppNavigation() {
                 EnglishScreen(
                     onMovieClick = { mediaId ->
                         navController.navigate(Screen.EnglishDetail.createRoute(mediaId))
-                    }
+                    },
+                    onSearch = { navController.navigate(Screen.EnglishSearch.route) }
                 )
             }
 
@@ -265,7 +266,7 @@ fun AppNavigation() {
                 )
             }
 
-            // AnimeDetail → reuse DetailScreen via slug
+            // #45 — AnimeDetail → Anime47 API detail
             composable(
                 Screen.AnimeDetail.route,
                 arguments = listOf(
@@ -273,9 +274,10 @@ fun AppNavigation() {
                     navArgument("slug") { type = NavType.StringType }
                 )
             ) { entry ->
+                val id = entry.arguments?.getInt("id") ?: 0
                 val slug = entry.arguments?.getString("slug") ?: ""
-                // Anime47 uses slug same as OPhim for many titles — try detail
-                DetailScreen(
+                xyz.raidenhub.phim.ui.screens.anime.AnimeDetailScreen(
+                    animeId = id,
                     slug = slug,
                     onBack = { navController.popBackStack() },
                     onPlay = { s, sv, ep -> navController.navigate(Screen.Player.createRoute(s, sv, ep)) }
@@ -310,6 +312,16 @@ fun AppNavigation() {
                     title = entry.arguments?.getString("title") ?: "",
                     onBack = { navController.popBackStack() },
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                )
+            }
+
+            // #44 — English Search
+            composable(Screen.EnglishSearch.route) {
+                xyz.raidenhub.phim.ui.screens.english.EnglishSearchScreen(
+                    onMovieClick = { mediaId ->
+                        navController.navigate(Screen.EnglishDetail.createRoute(mediaId))
+                    },
+                    onBack = { navController.popBackStack() }
                 )
             }
         }
