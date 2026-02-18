@@ -113,6 +113,17 @@ object SubtitleRepository {
     }
 
     // ═══ SubDL Provider ═══
+    /**
+     * Direct access to SubDL search (for download flow in ViewModel)
+     */
+    suspend fun searchSubDLDirect(filmName: String): xyz.raidenhub.phim.data.api.models.SubDLResponse {
+        return subDLApi.search(
+            apiKey = SUBDL_API_KEY,
+            filmName = filmName,
+            languages = "vi,en"
+        )
+    }
+
     private suspend fun searchSubDL(
         filmName: String,
         year: String?,

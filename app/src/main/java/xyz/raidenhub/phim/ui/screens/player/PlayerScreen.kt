@@ -101,9 +101,11 @@ fun PlayerScreen(
     val context = LocalContext.current
     val activity = context as Activity
 
-    // Force landscape + fullscreen (modern API)
+    // Force landscape + fullscreen
     LaunchedEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         insetsController.hide(WindowInsetsCompat.Type.systemBars())
         insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -112,6 +114,7 @@ fun PlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             insetsController.show(WindowInsetsCompat.Type.systemBars())
         }

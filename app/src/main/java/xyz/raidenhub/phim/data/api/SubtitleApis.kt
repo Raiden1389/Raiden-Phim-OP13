@@ -56,7 +56,8 @@ interface SubSourceApi {
     @GET("api/v1/movies/search")
     suspend fun searchMovies(
         @Header("X-API-Key") apiKey: String,
-        @Query("query") query: String
+        @Query("q") query: String,
+        @Query("searchType") searchType: String = "text"
     ): SubSourceSearchResponse
 
     @GET("api/v1/subtitles")

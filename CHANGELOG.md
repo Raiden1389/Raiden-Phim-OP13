@@ -1,5 +1,24 @@
 # Raiden Phim — Changelog
 
+## v1.9.2 — 2026-02-18 (Vietsub & Player Fix)
+
+### ✨ New Features
+- **🔍 Tìm & Tải Vietsub** — Nút mới trong subtitle picker, gọi SubDL API → download zip → extract .srt → load vào player
+- `SubtitleDownloader` utility — Download, giải nén zip, cache subtitle local
+
+### 🐛 Bugfix
+- **Player video 00:00** — Fix player leak: không tạo lại ExoPlayer khi refererUrl thay đổi, dùng `HlsMediaSource.Factory` với OkHttpDataSource inline thay vì rebuild player
+- **Fullscreen bị override** — Thêm `FLAG_FULLSCREEN` + `setDecorFitsSystemWindows(false)` để chắc chắn ẩn system bars khi `enableEdgeToEdge()` active
+- **SubSource API 400** — Fix sai tên parameter: `query` → `q`, thêm `searchType=text` (bắt buộc)
+
+### 🔧 Technical
+- `SubtitleDownloader.kt` — Download + extract zip subtitles to cache dir
+- `EnglishPlayerViewModel.searchVietsub()` — Search SubDL API, download top 3 vietsub, add to list
+- `SubtitleRepository.searchSubDLDirect()` — Public API cho direct SubDL search
+- `SubSourceApi.searchMovies()` — Fix `@Query("q")` + `@Query("searchType")`
+
+---
+
 ## v1.9.1 — 2026-02-18 (Bugfix & Performance)
 
 ### 🐛 Bugfix

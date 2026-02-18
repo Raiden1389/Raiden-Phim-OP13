@@ -3,6 +3,7 @@ package xyz.raidenhub.phim.ui.screens.english
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -49,8 +50,8 @@ import xyz.raidenhub.phim.data.api.models.SubtitleResult
 import xyz.raidenhub.phim.data.repository.ConsumetRepository
 import xyz.raidenhub.phim.data.repository.SubtitleRepository
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.util.SubtitleDownloader
 
-// ═══ ViewModel ═══
 class EnglishPlayerViewModel : ViewModel() {
     private val _streamUrl = MutableStateFlow("")
     val streamUrl = _streamUrl.asStateFlow()
@@ -65,6 +66,13 @@ class EnglishPlayerViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
 
+    // Vietsub search state
+    private val _isSearchingSubs = MutableStateFlow(false)
+    val isSearchingSubs = _isSearchingSubs.asStateFlow()
+    private val _subSearchMessage = MutableStateFlow<String?>(null)
+    val subSearchMessage = _subSearchMessage.asStateFlow()
+    private var _filmName = ""
+
     // Episode management
     private val _episodes = MutableStateFlow<List<ConsumetEpisode>>(emptyList())
     val episodes = _episodes.asStateFlow()
@@ -72,6 +80,7 @@ class EnglishPlayerViewModel : ViewModel() {
     val currentEpIndex = _currentEpIndex.asStateFlow()
 
     fun load(episodeId: String, mediaId: String, filmName: String = "") {
+        _filmName = filmName
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
@@ -116,6 +125,54 @@ class EnglishPlayerViewModel : ViewModel() {
         }
     }
 
+    /**
+     * Search and download Vietnamese subtitles from SubDL.
+     * Downloads zip files, extracts .srt/.vtt, saves to cache, adds to subtitle list.
+     */
+    fun searchVietsub(context: android.content.Context) {
+        val name = _filmName.ifBlank { _title.value }
+        if (name.isBlank()) {
+            _subSearchMessage.value = "Không có tên phim để tìm"
+            return
+        }
+        viewModelScope.launch {
+            _isSearchingSubs.value = true
+            _subSearchMessage.value = "Đang tìm vietsub cho \"$name\"..."
+
+            try {
+                // Call SubDL API
+                val response = SubtitleRepository.searchSubDLDirect(name)
+                val viSubs = response.subtitles.filter {
+                    it.lang.contains("vietnam", ignoreCase = true)
+                }
+
+                if (viSubs.isEmpty()) {
+                    _subSearchMessage.value = "Không tìm thấy vietsub trên SubDL"
+                    _isSearchingSubs.value = false
+                    return@launch
+                }
+
+                _subSearchMessage.value = "Tìm thấy ${viSubs.size} vietsub, đang tải..."
+
+                // Download + extract (take top 3 to avoid too many downloads)
+                val downloaded = viSubs.take(3).mapNotNull { sub ->
+                    SubtitleDownloader.downloadSubDL(context, sub)
+                }
+
+                if (downloaded.isNotEmpty()) {
+                    // Add to existing subtitle list (at the top)
+                    _subtitles.value = downloaded + _subtitles.value
+                    _subSearchMessage.value = "✅ Đã tải ${downloaded.size} vietsub!"
+                } else {
+                    _subSearchMessage.value = "❌ Tải vietsub thất bại"
+                }
+            } catch (e: Exception) {
+                _subSearchMessage.value = "❌ Lỗi: ${e.message}"
+            }
+            _isSearchingSubs.value = false
+        }
+    }
+
     fun setEpisodes(eps: List<ConsumetEpisode>, currentIdx: Int) {
         _episodes.value = eps
         _currentEpIndex.value = currentIdx
@@ -137,9 +194,12 @@ fun EnglishPlayerScreen(
     val context = LocalContext.current
     val activity = context as Activity
 
-    // Force landscape + fullscreen (modern API)
+    // Force landscape + fullscreen
     LaunchedEffect(Unit) {
         activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // FLAG_FULLSCREEN ensures status bar is hidden even with enableEdgeToEdge()
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
         val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         insetsController.hide(WindowInsetsCompat.Type.systemBars())
         insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -148,6 +208,7 @@ fun EnglishPlayerScreen(
     DisposableEffect(Unit) {
         onDispose {
             activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
             insetsController.show(WindowInsetsCompat.Type.systemBars())
         }
@@ -177,26 +238,16 @@ fun EnglishPlayerScreen(
         }
     }
 
-    // ExoPlayer with Referer header support
-    val player = remember(refererUrl) {
-        val builder = ExoPlayer.Builder(context)
-        if (refererUrl.isNotBlank()) {
-            val okClient = OkHttpClient.Builder().build()
-            val dataSourceFactory = OkHttpDataSource.Factory(okClient)
-                .setDefaultRequestProperties(mapOf(
-                    "Referer" to refererUrl,
-                    "Origin" to refererUrl.substringBefore("/embed")
-                ))
-            builder.setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
-        }
-        builder.build().apply { playWhenReady = true }
+    // Single ExoPlayer instance — never recreated
+    val player = remember {
+        ExoPlayer.Builder(context).build().apply { playWhenReady = true }
     }
 
     DisposableEffect(Unit) {
         onDispose { player.release() }
     }
 
-    // Set media when stream URL loaded
+    // Set media when stream URL loaded — build HlsMediaSource with Referer inline
     LaunchedEffect(streamUrl, selectedSubtitleIndex, refererUrl) {
         if (streamUrl.isBlank()) return@LaunchedEffect
 
@@ -217,17 +268,30 @@ fun EnglishPlayerScreen(
         } else emptyList()
 
         val currentPos = player.currentPosition.takeIf { it > 0 } ?: 0L
-        val wasPlaying = player.isPlaying
 
         val mediaItem = MediaItem.Builder()
             .setUri(streamUrl)
             .setSubtitleConfigurations(subtitleConfigs)
             .build()
 
-        player.setMediaItem(mediaItem)
+        // Build HlsMediaSource with Referer header via OkHttp
+        if (refererUrl.isNotBlank()) {
+            val okClient = OkHttpClient.Builder().build()
+            val dataSourceFactory = OkHttpDataSource.Factory(okClient)
+                .setDefaultRequestProperties(mapOf(
+                    "Referer" to refererUrl,
+                    "Origin" to Uri.parse(refererUrl).let { "${it.scheme}://${it.host}" }
+                ))
+            val hlsSource = HlsMediaSource.Factory(dataSourceFactory)
+                .createMediaSource(mediaItem)
+            player.setMediaSource(hlsSource)
+        } else {
+            player.setMediaItem(mediaItem)
+        }
+
         player.prepare()
         if (currentPos > 0) player.seekTo(currentPos)
-        player.playWhenReady = wasPlaying || true
+        player.playWhenReady = true
     }
 
     // ═══ UI ═══
@@ -376,6 +440,53 @@ fun EnglishPlayerScreen(
                                     ).show()
                                 }
                             )
+                        }
+
+                        // ═══ Tìm Vietsub Button ═══
+                        item {
+                            val isSearchingSubs by vm.isSearchingSubs.collectAsState()
+                            val subSearchMessage by vm.subSearchMessage.collectAsState()
+
+                            Spacer(Modifier.height(8.dp))
+                            HorizontalDivider(color = Color.White.copy(0.1f))
+                            Spacer(Modifier.height(8.dp))
+
+                            // Search button
+                            Button(
+                                onClick = { vm.searchVietsub(context) },
+                                enabled = !isSearchingSubs,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2196F3)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                if (isSearchingSubs) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Đang tìm...", color = Color.White)
+                                } else {
+                                    Text("🔍 Tìm & Tải Vietsub", color = Color.White)
+                                }
+                            }
+
+                            // Status message
+                            if (subSearchMessage != null) {
+                                Text(
+                                    subSearchMessage!!,
+                                    color = Color.White.copy(0.7f),
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                )
+                            }
+
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
                 }
