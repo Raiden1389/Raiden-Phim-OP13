@@ -43,6 +43,20 @@ android {
             val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
             output.outputFileName = "RaidenPhim-v${variant.versionName}.apk"
         }
+        // Auto-copy release APK to Google Drive
+        if (variant.buildType.name == "release") {
+            variant.assembleProvider.get().doLast {
+                val apkFile = variant.outputs.first().outputFile
+                val destDir = file("H:/My Drive/Raiden APK")
+                if (destDir.exists()) {
+                    copy {
+                        from(apkFile)
+                        into(destDir)
+                    }
+                    println("✅ APK copied to: ${destDir}/${apkFile.name}")
+                }
+            }
+        }
     }
 
     compileOptions {

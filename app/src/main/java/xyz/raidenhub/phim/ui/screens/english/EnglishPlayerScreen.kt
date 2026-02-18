@@ -247,9 +247,19 @@ fun EnglishPlayerScreen(
         onDispose { player.release() }
     }
 
-    // Set media when stream URL loaded — build HlsMediaSource with Referer inline
-    LaunchedEffect(streamUrl, selectedSubtitleIndex, refererUrl) {
+    // Set media when stream URL loaded — wait for BOTH streamUrl AND refererUrl
+    // to avoid race condition where streamUrl arrives without Referer → 403
+    LaunchedEffect(streamUrl, refererUrl, selectedSubtitleIndex) {
+        // Wait until stream URL is ready. Also wait for refererUrl (API always returns it).
+        // Use a small delay to let both StateFlows settle.
         if (streamUrl.isBlank()) return@LaunchedEffect
+        // Wait briefly for refererUrl to arrive (they emit near-simultaneously from ViewModel)
+        if (refererUrl.isBlank()) {
+            kotlinx.coroutines.delay(300)
+            // After delay, re-read from VM directly
+        }
+
+        val finalReferer = vm.refererUrl.value
 
         val subtitleConfigs = if (selectedSubtitleIndex >= 0 && selectedSubtitleIndex < subtitles.size) {
             val sub = subtitles[selectedSubtitleIndex]
@@ -275,17 +285,18 @@ fun EnglishPlayerScreen(
             .build()
 
         // Build HlsMediaSource with Referer header via OkHttp
-        if (refererUrl.isNotBlank()) {
+        if (finalReferer.isNotBlank()) {
             val okClient = OkHttpClient.Builder().build()
             val dataSourceFactory = OkHttpDataSource.Factory(okClient)
                 .setDefaultRequestProperties(mapOf(
-                    "Referer" to refererUrl,
-                    "Origin" to Uri.parse(refererUrl).let { "${it.scheme}://${it.host}" }
+                    "Referer" to finalReferer,
+                    "Origin" to Uri.parse(finalReferer).let { "${it.scheme}://${it.host}" }
                 ))
             val hlsSource = HlsMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(mediaItem)
             player.setMediaSource(hlsSource)
         } else {
+            // Fallback: no referer (might still work for some sources)
             player.setMediaItem(mediaItem)
         }
 
