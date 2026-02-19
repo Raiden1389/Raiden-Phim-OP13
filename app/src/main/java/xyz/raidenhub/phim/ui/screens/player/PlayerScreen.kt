@@ -1,17 +1,23 @@
 package xyz.raidenhub.phim.ui.screens.player
 
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
+import xyz.raidenhub.phim.data.local.IntroOutroManager
 
 import android.app.Activity
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Build
+import android.util.Rational
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.OptIn
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
@@ -20,12 +26,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +50,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +75,8 @@ class PlayerViewModel : ViewModel() {
     // Country/Type-aware auto-next
     private val _autoNextMs = MutableStateFlow(Constants.AUTO_NEXT_BEFORE_END_MS)
     val autoNextMs = _autoNextMs.asStateFlow()
-    private var _country = ""
+    private val _country = MutableStateFlow("")
+    val country = _country.asStateFlow()
     private var _type = ""
 
     fun load(slug: String, serverIdx: Int, epIdx: Int) {
@@ -77,9 +88,9 @@ class PlayerViewModel : ViewModel() {
                     _episodes.value = eps
                     _currentEp.value = epIdx.coerceIn(0, (eps.size - 1).coerceAtLeast(0))
                     // Detect country + type for smart timing
-                    _country = result.movie.country.firstOrNull()?.slug ?: ""
+                    _country.value = result.movie.country.firstOrNull()?.slug ?: ""
                     _type = result.movie.type
-                    _autoNextMs.value = Constants.getAutoNextMs(_country, _type)
+                    _autoNextMs.value = Constants.getAutoNextMs(_country.value, _type)
                 }
         }
     }
@@ -89,7 +100,7 @@ class PlayerViewModel : ViewModel() {
     fun nextEp() { if (hasNext()) _currentEp.value++ }
 }
 
-@OptIn(UnstableApi::class)
+@OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     slug: String,
@@ -100,23 +111,63 @@ fun PlayerScreen(
 ) {
     val context = LocalContext.current
     val activity = context as Activity
+    val haptic = LocalHapticFeedback.current
 
-    // Force landscape + fullscreen
-    LaunchedEffect(Unit) {
-        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        activity.window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
-        val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-        insetsController.hide(WindowInsetsCompat.Type.systemBars())
-        insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    // ═══ FULLSCREEN — Activity đã handle theme/cutout/bars ═══
+    // PlayerScreen chỉ cần keep-screen-on + orientation
+    DisposableEffect(Unit) {
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Re-hide bars khi composable mount (phòng trường hợp bị show lại)
+        val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+
+        onDispose {
+            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
+    // ═══ AUDIO FOCUS ═══
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+
     DisposableEffect(Unit) {
+        val focusRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener { focusChange ->
+                    when (focusChange) {
+                        AudioManager.AUDIOFOCUS_LOSS,
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                            // Pause when phone call or other app takes focus
+                        }
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                            // Lower volume temporarily
+                        }
+                        AudioManager.AUDIOFOCUS_GAIN -> {
+                            // Resume — user can manually play
+                        }
+                    }
+                }
+                .build()
+        } else null
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+            audioManager.requestAudioFocus(focusRequest)
+        }
+
         onDispose {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            activity.window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-            insetsController.show(WindowInsetsCompat.Type.systemBars())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+                audioManager.abandonAudioFocusRequest(focusRequest)
+            }
         }
     }
 
@@ -126,6 +177,7 @@ fun PlayerScreen(
     val currentEp by vm.currentEp.collectAsState()
     val title by vm.title.collectAsState()
     val autoNextMs by vm.autoNextMs.collectAsState()
+    val movieCountry by vm.country.collectAsState()
 
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -145,27 +197,40 @@ fun PlayerScreen(
         }
     }
 
-    // Auto-next: respect Settings toggle
+    // ═══ INTRO/OUTRO CONFIG (3-level hierarchy: series → country → null) ═══
+    var effectiveConfig by remember { mutableStateOf(IntroOutroManager.getEffectiveConfig(slug, movieCountry)) }
+    // Refresh when country loads (async from ViewModel)
+    LaunchedEffect(movieCountry) {
+        effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+    }
+    // Promote dialog state
+    var showPromoteDialog by remember { mutableStateOf(false) }
+
+    // ═══ AUTO-NEXT (mark-based + country fallback) ═══
     val autoPlayEnabled by SettingsManager.autoPlayNext.collectAsState()
     var autoNextTriggered by remember { mutableStateOf(false) }
-
-    // Reset khi đổi tập
     LaunchedEffect(currentEp) { autoNextTriggered = false }
 
-    // Check mỗi 3s, remaining <= autoNextMs → countdown 5s → next
-    LaunchedEffect(player, currentEp, autoNextMs, autoPlayEnabled) {
+    LaunchedEffect(player, currentEp, autoNextMs, autoPlayEnabled, effectiveConfig) {
         while (true) {
             delay(3000)
             if (!autoPlayEnabled || !vm.hasNext() || autoNextTriggered) continue
-            val duration = player.duration
-            val position = player.currentPosition
-            if (duration <= 0) continue
+            val dur = player.duration
+            val pos = player.currentPosition
+            if (dur <= 0) continue
 
-            val remaining = duration - position
-            if (remaining in 1..autoNextMs) {
+            val shouldNext = if (effectiveConfig?.hasOutro == true) {
+                // Mark-based: outro đã được đánh dấu
+                pos >= effectiveConfig!!.outroStartMs
+            } else {
+                // Fallback: country-based timing
+                val remaining = dur - pos
+                remaining in 1..autoNextMs
+            }
+
+            if (shouldNext) {
                 autoNextTriggered = true
                 val nextEpName = episodes.getOrNull(currentEp + 1)?.name ?: "tiếp"
-                // Countdown 5...4...3...2...1
                 for (i in 5 downTo 1) {
                     Toast.makeText(context, "⏭ Tập $nextEpName trong ${i}s...", Toast.LENGTH_SHORT).show()
                     delay(1000)
@@ -188,9 +253,30 @@ fun PlayerScreen(
         player.addListener(listener)
     }
 
+    // ═══ Audio Focus Listener — pause/resume player ═══
+    DisposableEffect(player) {
+        val focusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS,
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> player.pause()
+                AudioManager.AUDIOFOCUS_GAIN -> { /* user manually resumes */ }
+            }
+        }
+        @Suppress("DEPRECATION")
+        audioManager.requestAudioFocus(
+            focusListener,
+            AudioManager.STREAM_MUSIC,
+            AudioManager.AUDIOFOCUS_GAIN
+        )
+        onDispose {
+            @Suppress("DEPRECATION")
+            audioManager.abandonAudioFocus(focusListener)
+        }
+    }
+
+    // Save watch progress on dispose
     DisposableEffect(Unit) {
         onDispose {
-            // Save watch progress before releasing
             val pos = player.currentPosition
             val dur = player.duration
             if (dur > 0 && pos > 0) {
@@ -205,13 +291,14 @@ fun PlayerScreen(
         }
     }
 
+    // ═══ UI STATES ═══
     var showControls by remember { mutableStateOf(true) }
     var speedIdx by remember { mutableIntStateOf(2) } // 1.0x default
     val speeds = Constants.PLAYBACK_SPEEDS
-    var showSkipIntro by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
 
-    // #23 — Brightness control
+    // Brightness
     var brightness by remember {
         mutableStateOf(activity.window.attributes.screenBrightness.let {
             if (it < 0) 0.5f else it
@@ -219,15 +306,31 @@ fun PlayerScreen(
     }
     var showBrightnessIndicator by remember { mutableStateOf(false) }
 
-    // #24 — Volume control
-    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val maxVolume = remember { audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC) }
+    // Volume
     var volume by remember { mutableStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume) }
     var showVolumeIndicator by remember { mutableStateOf(false) }
+
+    // Seek animation (OTT double tap)
+    var seekAnimSide by remember { mutableIntStateOf(0) } // -1 left, 1 right, 0 none
+    var seekAnimAmount by remember { mutableIntStateOf(0) }
+
+    // Aspect ratio toggle
+    var aspectRatioMode by remember { mutableIntStateOf(AspectRatioFrameLayout.RESIZE_MODE_FIT) }
 
     // Track position for seek bar
     var currentPos by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
+
+    // Skip Intro: derive from mark config + current position
+    val showSkipIntro by remember {
+        derivedStateOf {
+            val cfg = effectiveConfig ?: return@derivedStateOf false
+            if (!cfg.hasIntro && cfg.introEndMs <= 0) return@derivedStateOf false
+            val introStart = if (cfg.introStartMs >= 0) cfg.introStartMs else 0L
+            val introEnd = cfg.introEndMs
+            currentPos in introStart..introEnd
+        }
+    }
 
     // Update position every 500ms
     LaunchedEffect(player) {
@@ -246,31 +349,54 @@ fun PlayerScreen(
         }
     }
 
-    // Show skip intro after 5s, hide after 2 min
-    LaunchedEffect(currentEp) {
-        showSkipIntro = false
-        delay(5000)
-        showSkipIntro = true
-        delay(Constants.SKIP_INTRO_SHOW_UNTIL_MS - 5000)
-        showSkipIntro = false
+    // Auto hide seek animation after 700ms
+    LaunchedEffect(seekAnimSide, seekAnimAmount) {
+        if (seekAnimSide != 0) {
+            delay(700)
+            seekAnimSide = 0
+            seekAnimAmount = 0
+        }
     }
+
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .windowInsetsPadding(WindowInsets(0)) // ngăn Compose tự add insets padding
+            // ═══ TAP + DOUBLE TAP (3-zone) ═══
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { showControls = !showControls },
                     onDoubleTap = { offset ->
                         if (isLocked) return@detectTapGestures
-                        val half = size.width / 2
-                        if (offset.x < half) player.seekTo(player.currentPosition - 10000)
-                        else player.seekTo(player.currentPosition + 10000)
+                        val third = size.width / 3
+
+                        when {
+                            // Left third → seek back
+                            offset.x < third -> {
+                                player.seekTo((player.currentPosition - 10000).coerceAtLeast(0))
+                                seekAnimSide = -1
+                                seekAnimAmount += 10
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            // Right third → seek forward
+                            offset.x > size.width - third -> {
+                                player.seekTo((player.currentPosition + 10000).coerceAtMost(player.duration))
+                                seekAnimSide = 1
+                                seekAnimAmount += 10
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                            // Center → play/pause
+                            else -> {
+                                if (player.isPlaying) player.pause() else player.play()
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
                     }
                 )
             }
-            // #23 + #24 — Vertical drag: left = brightness, right = volume
+            // ═══ Vertical drag: left = brightness, right = volume ═══
             .pointerInput(isLocked) {
                 if (isLocked) return@pointerInput
                 detectVerticalDragGestures(
@@ -281,17 +407,15 @@ fun PlayerScreen(
                 ) { change, dragAmount ->
                     change.consume()
                     val isLeftSide = change.position.x < size.width / 2
-                    val delta = -dragAmount / size.height  // up = positive
+                    val delta = -dragAmount / size.height
 
                     if (isLeftSide) {
-                        // Brightness
                         brightness = (brightness + delta).coerceIn(0.01f, 1f)
                         val params = activity.window.attributes
                         params.screenBrightness = brightness
                         activity.window.attributes = params
                         showBrightnessIndicator = true
                     } else {
-                        // Volume
                         volume = (volume + delta).coerceIn(0f, 1f)
                         audioManager.setStreamVolume(
                             AudioManager.STREAM_MUSIC,
@@ -303,20 +427,456 @@ fun PlayerScreen(
                 }
             }
     ) {
-        // ExoPlayer view
+        // ═══ ExoPlayer view ═══
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     this.player = player
                     useController = false
                     keepScreenOn = true
+                    resizeMode = aspectRatioMode
+                    fitsSystemWindows = false
+                    setPadding(0, 0, 0, 0)
+                    clipToPadding = false
+                    setBackgroundColor(android.graphics.Color.BLACK)
+                    // Consume hết insets — không để PlayerView tự handle
+                    androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this) { _, _ ->
+                        androidx.core.view.WindowInsetsCompat.CONSUMED
+                    }
                 }
             },
-            modifier = Modifier.fillMaxSize()
+            update = { view ->
+                view.resizeMode = aspectRatioMode
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
         )
 
-        // #23 — Brightness indicator (left side)
-        if (showBrightnessIndicator) {
+        // ═══ SEEK ANIMATION OVERLAY (OTT style) ═══
+        AnimatedVisibility(
+            visible = seekAnimSide != 0,
+            modifier = Modifier.align(
+                if (seekAnimSide == -1) Alignment.CenterStart else Alignment.CenterEnd
+            ),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(48.dp)
+                    .background(Color.Black.copy(0.6f), RoundedCornerShape(16.dp))
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        if (seekAnimSide == -1) "⏪" else "⏩",
+                        fontSize = 28.sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${seekAnimAmount}s",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // ═══ CONTROLS OVERLAY (OTT Premium) ═══
+        if (showControls) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.45f))
+            ) {
+                if (!isLocked) {
+                    // ═══ TOP BAR ═══
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .align(Alignment.TopStart),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                        }
+                        val epName = episodes.getOrNull(currentEp)?.name ?: ""
+                        val displayTitle = if (epName.isNotBlank()) "$title — Tập $epName" else title
+                        Text(
+                            displayTitle,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+                        )
+
+                        // Speed pill
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = Color.White.copy(0.15f),
+                            modifier = Modifier.clickable {
+                                speedIdx = (speedIdx + 1) % speeds.size
+                                player.setPlaybackSpeed(speeds[speedIdx])
+                            }
+                        ) {
+                            Text(
+                                "${speeds[speedIdx]}x",
+                                color = if (speedIdx != 2) C.Accent else Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+
+                        // PiP button
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            IconButton(
+                                onClick = {
+                                    val params = PictureInPictureParams.Builder()
+                                        .setAspectRatio(Rational(16, 9))
+                                        .build()
+                                    activity.enterPictureInPictureMode(params)
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(Icons.Default.PictureInPicture, "PiP", tint = Color.White, modifier = Modifier.size(22.dp))
+                            }
+                        }
+
+                        // Lock button
+                        IconButton(onClick = { isLocked = true }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Lock, "Lock", tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+
+                        // Gear icon (settings — mark intro/outro)
+                        IconButton(
+                            onClick = { showSettingsSheet = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                "Settings",
+                                tint = if (effectiveConfig != null) C.Accent else Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // ═══ LEFT: Brightness Vertical Slider ═══
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 16.dp)
+                            .width(36.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            if (brightness > 0.5f) Icons.Default.LightMode else Icons.Default.BrightnessLow,
+                            "Brightness",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        // Vertical slider via rotated Slider
+                        Box(
+                            modifier = Modifier
+                                .height(120.dp)
+                                .width(28.dp)
+                                .background(Color.White.copy(0.1f), RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            // Filled portion
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(brightness)
+                                    .background(Color.White.copy(0.6f), RoundedCornerShape(14.dp))
+                                    .align(Alignment.BottomCenter)
+                            )
+                            // Thumb indicator
+                            Box(
+                                modifier = Modifier
+                                    .offset(y = -(brightness * 112).dp)
+                                    .size(14.dp)
+                                    .background(Color.White, RoundedCornerShape(50))
+                                    .align(Alignment.BottomCenter)
+                            )
+                        }
+                    }
+
+                    // ═══ RIGHT: Volume Vertical Slider ═══
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 16.dp)
+                            .width(36.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.VolumeUp,
+                            "Volume",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .height(120.dp)
+                                .width(28.dp)
+                                .background(Color.White.copy(0.1f), RoundedCornerShape(14.dp)),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            // Filled portion (red)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(volume)
+                                    .background(C.Primary.copy(0.8f), RoundedCornerShape(14.dp))
+                                    .align(Alignment.BottomCenter)
+                            )
+                            // Red thumb indicator
+                            Box(
+                                modifier = Modifier
+                                    .offset(y = -(volume * 112).dp)
+                                    .size(14.dp)
+                                    .background(C.Primary, RoundedCornerShape(50))
+                                    .align(Alignment.BottomCenter)
+                            )
+                        }
+                    }
+
+                    // ═══ CENTER: Play/Pause (Red Gradient Circle) ═══
+                    Box(
+                        modifier = Modifier.align(Alignment.Center),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Skip previous
+                        if (currentEp > 0) {
+                            IconButton(
+                                onClick = { vm.setEpisode(currentEp - 1) },
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .offset(x = (-80).dp)
+                            ) {
+                                Icon(Icons.Default.SkipPrevious, "Prev", tint = Color.White, modifier = Modifier.size(36.dp))
+                            }
+                        }
+
+                        // Main play/pause button with red gradient
+                        Box(
+                            modifier = Modifier
+                                .size(76.dp)
+                                .background(
+                                    brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                        colors = listOf(
+                                            C.Primary.copy(0.7f),
+                                            C.PrimaryDark.copy(0.4f),
+                                            Color.Transparent
+                                        ),
+                                        radius = 120f
+                                    ),
+                                    shape = RoundedCornerShape(50)
+                                )
+                                .clickable {
+                                    if (player.isPlaying) player.pause() else player.play()
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Inner circle
+                            Box(
+                                modifier = Modifier
+                                    .size(62.dp)
+                                    .background(C.Primary.copy(0.35f), RoundedCornerShape(50)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    "Play/Pause",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(44.dp)
+                                )
+                            }
+                        }
+
+                        // Skip next
+                        if (vm.hasNext()) {
+                            IconButton(
+                                onClick = { vm.nextEp() },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .offset(x = 80.dp)
+                            ) {
+                                Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(36.dp))
+                            }
+                        }
+                    }
+
+                    // ═══ BOTTOM SECTION ═══
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        // ═══ Red Seekbar ═══
+                        Slider(
+                            value = if (duration > 0) currentPos.toFloat() / duration.toFloat() else 0f,
+                            onValueChange = { fraction ->
+                                val seekTo = (fraction * duration).toLong()
+                                player.seekTo(seekTo)
+                                currentPos = seekTo
+                            },
+                            colors = SliderDefaults.colors(
+                                thumbColor = C.Primary,
+                                activeTrackColor = C.Primary,
+                                inactiveTrackColor = Color.White.copy(0.25f)
+                            ),
+                            modifier = Modifier.fillMaxWidth().height(24.dp)
+                        )
+
+                        // Time display
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            Text(
+                                "${formatTime(currentPos)} / ${formatTime(duration)}",
+                                color = Color.White.copy(0.8f),
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        // ═══ Bottom Controls Row ═══
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Left: Aspect ratio + CC
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Aspect ratio button (square icon)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(0.12f),
+                                    modifier = Modifier.clickable {
+                                        aspectRatioMode = if (aspectRatioMode == AspectRatioFrameLayout.RESIZE_MODE_FIT) {
+                                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                        } else {
+                                            AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        if (aspectRatioMode == AspectRatioFrameLayout.RESIZE_MODE_FIT)
+                                            Icons.Default.FitScreen
+                                        else
+                                            Icons.Default.Fullscreen,
+                                        "Aspect Ratio",
+                                        tint = Color.White,
+                                        modifier = Modifier.padding(8.dp).size(20.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                // CC (subtitle) button
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(0.12f)
+                                ) {
+                                    Icon(
+                                        Icons.Default.ClosedCaption,
+                                        "Subtitles",
+                                        tint = Color.White,
+                                        modifier = Modifier.padding(8.dp).size(20.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(12.dp))
+
+                            // Center: Episode strip
+                            if (episodes.size > 1) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Episodes",
+                                        color = Color.White.copy(0.6f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    androidx.compose.foundation.lazy.LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(episodes.size) { idx ->
+                                            val isCurrentEp = idx == currentEp
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = if (isCurrentEp) C.Primary else Color.White.copy(0.15f),
+                                                border = if (isCurrentEp) androidx.compose.foundation.BorderStroke(2.dp, C.Primary) else null,
+                                                modifier = Modifier
+                                                    .size(width = 56.dp, height = 36.dp)
+                                                    .clickable { vm.setEpisode(idx) }
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        episodes[idx].name.let {
+                                                            if (it.length > 4) it.take(4) else it
+                                                        },
+                                                        color = if (isCurrentEp) Color.White else Color.White.copy(0.7f),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (isCurrentEp) FontWeight.Bold else FontWeight.Normal
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f))
+                            }
+
+                            // Right: Skip Intro pill
+                            if (showSkipIntro) {
+                                Spacer(Modifier.width(12.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = Color.White,
+                                    modifier = Modifier.clickable {
+                                        effectiveConfig?.let { cfg ->
+                                            player.seekTo(cfg.introEndMs)
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        "Skip Intro",
+                                        color = Color.Black,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // ═══ LOCKED MODE ═══
+                    IconButton(
+                        onClick = { isLocked = false },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 16.dp)
+                            .background(Color.White.copy(0.15f), RoundedCornerShape(50))
+                    ) {
+                        Icon(Icons.Default.LockOpen, "Unlock", tint = Color.White, modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+        }
+
+        // ═══ Brightness indicator (when dragging) ═══
+        if (showBrightnessIndicator && !showControls) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
@@ -335,8 +895,8 @@ fun PlayerScreen(
             }
         }
 
-        // #24 — Volume indicator (right side)
-        if (showVolumeIndicator) {
+        // ═══ Volume indicator (when dragging) ═══
+        if (showVolumeIndicator && !showControls) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
@@ -346,9 +906,7 @@ fun PlayerScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        if (volume > 0.5f) Icons.Default.VolumeUp
-                        else if (volume > 0f) Icons.Default.VolumeDown
-                        else Icons.Default.VolumeOff,
+                        Icons.Default.VolumeUp,
                         "Volume", tint = Color.White, modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.height(4.dp))
@@ -356,179 +914,214 @@ fun PlayerScreen(
                 }
             }
         }
+    }
 
-        // Controls overlay
-        if (showControls) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.45f))
+    // ═══ SETTINGS BOTTOM SHEET (Mark Intro/Outro) ═══
+    if (showSettingsSheet) {
+        val countryName = IntroOutroManager.getCountryDisplayName(movieCountry)
+        val countryDefault = IntroOutroManager.getCountryDefault(movieCountry)
+        val hasOverride = IntroOutroManager.hasSeriesOverride(slug)
+
+        ModalBottomSheet(
+            onDismissRequest = { showSettingsSheet = false },
+            containerColor = C.Surface,
+            contentColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 32.dp)
             ) {
-                if (!isLocked) {
-                    // ═══ TOP BAR ═══
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .align(Alignment.TopStart),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-                        }
-                        // Title + episode
-                        val epName = episodes.getOrNull(currentEp)?.name ?: ""
-                        val displayTitle = if (epName.isNotBlank()) "$title — Tập $epName" else title
-                        Text(
-                            displayTitle,
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
-                        )
-                        // Speed button
-                        Text(
-                            "${speeds[speedIdx]}x",
-                            color = if (speedIdx != 2) C.Accent else Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .background(Color.White.copy(0.15f), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    speedIdx = (speedIdx + 1) % speeds.size
-                                    player.setPlaybackSpeed(speeds[speedIdx])
-                                }
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        // Lock button
-                        IconButton(onClick = { isLocked = true }, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Default.Lock, "Lock", tint = Color.White.copy(0.7f), modifier = Modifier.size(20.dp))
-                        }
-                    }
+                Text(
+                    "⚙️ Player Settings",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Đánh dấu intro/outro • $countryName",
+                    fontSize = 13.sp,
+                    color = C.TextSecondary
+                )
+                Spacer(Modifier.height(16.dp))
 
-                    // ═══ CENTER: Play/Pause ═══
-                    Box(
-                        modifier = Modifier.align(Alignment.Center),
-                        contentAlignment = Alignment.Center
+                // Config status display
+                val cfg = effectiveConfig
+                if (cfg != null) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = C.SurfaceVariant
                     ) {
-                        // Glow circle background
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .background(C.Primary.copy(0.2f), RoundedCornerShape(50))
-                        )
-                        IconButton(
-                            onClick = { if (player.isPlaying) player.pause() else player.play() },
-                            modifier = Modifier.size(64.dp)
-                        ) {
-                            Icon(
-                                if (player.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                "Play/Pause",
-                                tint = Color.White,
-                                modifier = Modifier.size(44.dp)
-                            )
-                        }
-                    }
-
-                    // Prev/Next episode buttons
-                    if (currentEp > 0) {
-                        IconButton(
-                            onClick = { vm.setEpisode(currentEp - 1) },
-                            modifier = Modifier.align(Alignment.CenterStart).padding(start = 48.dp)
-                        ) {
-                            Icon(Icons.Default.SkipPrevious, "Prev", tint = Color.White, modifier = Modifier.size(36.dp))
-                        }
-                    }
-                    if (vm.hasNext()) {
-                        IconButton(
-                            onClick = { vm.nextEp() },
-                            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 48.dp)
-                        ) {
-                            Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(36.dp))
-                        }
-                    }
-
-                    // ═══ BOTTOM: SeekBar + Time ═══
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        // Skip intro (above seekbar)
-                        if (showSkipIntro) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.End
-                            ) {
-                                Text(
-                                    "Skip Intro ⏭",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .background(C.Primary, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            player.seekTo(player.currentPosition + Constants.SKIP_INTRO_MS)
-                                            showSkipIntro = false
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                )
-                            }
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            val sourceLabel = if (hasOverride) "📌 Config riêng (series)" else "⭐ Mặc định $countryName"
+                            Text(sourceLabel, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = C.Accent)
                             Spacer(Modifier.height(4.dp))
-                        }
-
-                        // Seek bar
-                        Slider(
-                            value = if (duration > 0) currentPos.toFloat() / duration.toFloat() else 0f,
-                            onValueChange = { fraction ->
-                                val seekTo = (fraction * duration).toLong()
-                                player.seekTo(seekTo)
-                                currentPos = seekTo
-                            },
-                            colors = SliderDefaults.colors(
-                                thumbColor = C.Primary,
-                                activeTrackColor = C.Primary,
-                                inactiveTrackColor = Color.White.copy(0.3f)
-                            ),
-                            modifier = Modifier.fillMaxWidth().height(20.dp)
-                        )
-
-                        // Time row
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "${formatTime(currentPos)} / ${formatTime(duration)}",
-                                color = Color.White.copy(0.8f),
-                                fontSize = 12.sp
-                            )
-                            // Episode indicator
-                            val epLabel = episodes.getOrNull(currentEp)?.name
-                            if (!epLabel.isNullOrBlank()) {
-                                Text(
-                                    "Tập $epLabel/${episodes.size}",
-                                    color = Color.White.copy(0.5f),
-                                    fontSize = 11.sp
-                                )
+                            if (cfg.introStartMs >= 0) {
+                                Text("   Intro Start: ${formatTime(cfg.introStartMs)}", fontSize = 12.sp, color = C.TextSecondary)
+                            }
+                            if (cfg.introEndMs > 0) {
+                                Text("   Intro End: ${formatTime(cfg.introEndMs)}", fontSize = 12.sp, color = C.TextSecondary)
+                            }
+                            if (cfg.outroStartMs > 0) {
+                                Text("   Outro Start: ${formatTime(cfg.outroStartMs)}", fontSize = 12.sp, color = C.TextSecondary)
                             }
                         }
                     }
+                    Spacer(Modifier.height(6.dp))
+
+                    // Show country default info if exists and not using it
+                    if (hasOverride && countryDefault != null) {
+                        Text(
+                            "   ↳ Mặc định $countryName: Intro ${formatTime(countryDefault.introEndMs)}, Outro ${formatTime(countryDefault.outroStartMs)}",
+                            fontSize = 11.sp,
+                            color = C.TextMuted
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
                 } else {
-                    // ═══ LOCKED MODE ═══
-                    IconButton(
-                        onClick = { isLocked = false },
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 16.dp)
-                            .background(Color.White.copy(0.15f), RoundedCornerShape(50))
+                    Text("❌ Chưa có config", fontSize = 12.sp, color = C.TextMuted)
+                    if (countryDefault != null) {
+                        Text(
+                            "   ⭐ Mặc định $countryName có sẵn",
+                            fontSize = 11.sp,
+                            color = C.Accent
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+
+                // Current position
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = C.Primary.copy(0.15f)
+                ) {
+                    Text(
+                        "⏱ Vị trí hiện tại: ${formatTime(currentPos)}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = C.Primary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+
+                // Mark buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            IntroOutroManager.saveIntroStart(slug, player.currentPosition)
+                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            Toast.makeText(context, "✅ Intro Start: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
+                            showPromoteDialog = true
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
                     ) {
-                        Icon(Icons.Default.LockOpen, "Unlock", tint = Color.White, modifier = Modifier.size(24.dp))
+                        Text("📌 Intro\nStart", fontSize = 11.sp, lineHeight = 14.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            IntroOutroManager.saveIntroEnd(slug, player.currentPosition)
+                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            Toast.makeText(context, "✅ Intro End: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
+                            showPromoteDialog = true
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = C.Primary)
+                    ) {
+                        Text("📌 Intro\nEnd", fontSize = 11.sp, lineHeight = 14.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            IntroOutroManager.saveOutroStart(slug, player.currentPosition)
+                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            Toast.makeText(context, "✅ Outro Start: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
+                            showPromoteDialog = true
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = C.Accent)
+                    ) {
+                        Text("📌 Outro\nStart", fontSize = 11.sp, lineHeight = 14.sp, color = Color.Black)
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Reset buttons
+                if (hasOverride) {
+                    TextButton(
+                        onClick = {
+                            IntroOutroManager.resetConfig(slug)
+                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            Toast.makeText(context, "🗑 Đã xoá config riêng → dùng mặc định $countryName", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, "Reset", tint = C.Error, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Xoá config riêng (series)", color = C.Error, fontSize = 13.sp)
+                    }
+                }
+                if (countryDefault != null) {
+                    TextButton(
+                        onClick = {
+                            IntroOutroManager.resetCountryDefault(movieCountry)
+                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            Toast.makeText(context, "🗑 Đã xoá mặc định $countryName", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Delete, "Reset Country", tint = C.TextMuted, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Xoá mặc định $countryName", color = C.TextMuted, fontSize = 13.sp)
                     }
                 }
             }
         }
+    }
+
+    // ═══ PROMOTE DIALOG (Mark xong → hỏi dùng cho tất cả?) ═══
+    if (showPromoteDialog && movieCountry.isNotBlank()) {
+        val countryName = IntroOutroManager.getCountryDisplayName(movieCountry)
+        AlertDialog(
+            onDismissRequest = { showPromoteDialog = false },
+            containerColor = C.Surface,
+            title = {
+                Text("🌏 Áp dụng cho tất cả phim $countryName?", fontSize = 16.sp, color = Color.White)
+            },
+            text = {
+                Text(
+                    "Config vừa mark sẽ được dùng làm mặc định cho tất cả phim $countryName chưa có config riêng.",
+                    fontSize = 13.sp,
+                    color = C.TextSecondary
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showPromoteDialog = false }) {
+                    Text("Chỉ series này", color = C.TextSecondary)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        IntroOutroManager.promoteToCountryDefault(slug, movieCountry)
+                        effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                        Toast.makeText(context, "⭐ Đã đặt mặc định cho phim $countryName", Toast.LENGTH_SHORT).show()
+                        showPromoteDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = C.Primary)
+                ) {
+                    Text("✅ Tất cả phim $countryName")
+                }
+            }
+        )
     }
 }
 

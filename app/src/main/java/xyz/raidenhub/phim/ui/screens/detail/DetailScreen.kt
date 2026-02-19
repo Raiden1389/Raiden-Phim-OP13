@@ -239,8 +239,13 @@ fun DetailScreen(
                             if (imdbRating != null) add("⭐ IMDb $imdbRating/10")
                             if (movie.year > 0) add("📅 ${movie.year}")
                             if (movie.country.isNotEmpty()) add("🌍 ${movie.country.joinToString { it.name }}")
-                            if (movie.time.isNotBlank()) add("⏱ ${movie.time}")
-                            if (movie.episodeTotal.isNotBlank()) add("📺 ${movie.episodeTotal} tập")
+                            if (movie.time.isNotBlank() && !movie.time.contains("?")) add("⏱ ${movie.time}")
+                            if (movie.episodeTotal.isNotBlank() && !movie.episodeTotal.contains("?")) {
+                                // Tránh "? Tập tập" — episodeTotal đã có "Tập" thì không thêm nữa
+                                val epText = movie.episodeTotal
+                                val label = if (epText.contains("tập", ignoreCase = true)) epText else "$epText tập"
+                                add("📺 $label")
+                            }
                         }
                         if (infos.isNotEmpty()) {
                             FlowRow(

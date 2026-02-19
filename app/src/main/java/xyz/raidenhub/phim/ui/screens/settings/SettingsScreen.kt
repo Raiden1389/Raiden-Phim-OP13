@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import xyz.raidenhub.phim.BuildConfig
 import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
@@ -301,7 +302,7 @@ fun SettingsScreen() {
             )
             Spacer(Modifier.height(16.dp))
             Text(
-                "📱 RaidenPhim v1.6.1",
+                "📱 RaidenPhim v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 color = C.TextMuted,
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth()

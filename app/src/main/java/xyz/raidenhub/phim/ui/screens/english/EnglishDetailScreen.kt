@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,6 +30,7 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.ConsumetDetail
 import xyz.raidenhub.phim.data.api.models.ConsumetEpisode
+import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.repository.ConsumetRepository
 import xyz.raidenhub.phim.ui.theme.C
 
@@ -36,7 +39,7 @@ import xyz.raidenhub.phim.ui.theme.C
 fun EnglishDetailScreen(
     mediaId: String,
     onBack: () -> Unit,
-    onPlay: (episodeId: String, mediaId: String) -> Unit
+    onPlay: (episodeId: String, mediaId: String, filmName: String) -> Unit
 ) {
     var detail by remember { mutableStateOf<ConsumetDetail?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -52,6 +55,9 @@ fun EnglishDetailScreen(
         }
     }
 
+    val favorites by FavoriteManager.favorites.collectAsState()
+    val isFav = favorites.any { it.slug == mediaId }
+
     Scaffold(
         containerColor = C.Background,
         topBar = {
@@ -60,6 +66,19 @@ fun EnglishDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Back", tint = C.TextPrimary)
+                    }
+                },
+                actions = {
+                    if (detail != null) {
+                        IconButton(onClick = {
+                            FavoriteManager.toggle(mediaId, detail!!.title, detail!!.image, "english")
+                        }) {
+                            Icon(
+                                if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                "Favorite",
+                                tint = if (isFav) C.Primary else C.TextSecondary
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -94,7 +113,7 @@ fun EnglishDetailScreen(
                 detail = detail!!,
                 selectedSeason = selectedSeason,
                 onSeasonChange = { selectedSeason = it },
-                onPlay = onPlay,
+                onPlay = { epId, mId -> onPlay(epId, mId, detail!!.title) },
                 modifier = Modifier.padding(padding)
             )
         }

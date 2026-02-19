@@ -190,13 +190,19 @@ fun HomeScreen(
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                items(continueList, key = { it.slug }) { item ->
+                                items(continueList, key = { "${it.slug}_${it.source}" }) { item ->
                                     Box(modifier = Modifier.width(130.dp)) {
                                         Column(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .combinedClickable(
-                                                    onClick = { onMovieClick(item.slug) },
+                                                    onClick = {
+                                                        if (item.isEnglish) {
+                                                            onMovieClick("eng:${item.slug}")
+                                                        } else {
+                                                            onMovieClick(item.slug)
+                                                        }
+                                                    },
                                                     onLongClick = {
                                                         WatchHistoryManager.removeContinue(item.slug)
                                                         Toast.makeText(context, "🗑 Đã xoá", Toast.LENGTH_SHORT).show()
@@ -273,13 +279,19 @@ fun HomeScreen(
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                items(favorites, key = { it.slug }) { fav ->
+                                items(favorites, key = { "${it.slug}_${it.source}" }) { fav ->
                                     Box(modifier = Modifier.width(130.dp)) {
                                         Column(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .combinedClickable(
-                                                    onClick = { onMovieClick(fav.slug) },
+                                                    onClick = {
+                                                        if (fav.source == "english") {
+                                                            onMovieClick("eng:${fav.slug}")
+                                                        } else {
+                                                            onMovieClick(fav.slug)
+                                                        }
+                                                    },
                                                     onLongClick = {
                                                         FavoriteManager.toggle(fav.slug, fav.name)
                                                         Toast.makeText(context, "💔 Đã xoá ${fav.name}", Toast.LENGTH_SHORT).show()

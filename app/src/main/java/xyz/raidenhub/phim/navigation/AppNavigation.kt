@@ -1,5 +1,6 @@
 package xyz.raidenhub.phim.navigation
 
+import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -22,16 +24,16 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 
+import xyz.raidenhub.phim.PlayerActivity
+import xyz.raidenhub.phim.EnglishPlayerActivity
 import xyz.raidenhub.phim.ui.screens.anime.AnimeScreen
 import xyz.raidenhub.phim.ui.screens.category.CategoryScreen
 import xyz.raidenhub.phim.ui.screens.detail.DetailScreen
 import xyz.raidenhub.phim.ui.screens.history.WatchHistoryScreen
 import xyz.raidenhub.phim.ui.screens.home.HomeScreen
-import xyz.raidenhub.phim.ui.screens.player.PlayerScreen
 import xyz.raidenhub.phim.ui.screens.search.SearchScreen
 import xyz.raidenhub.phim.ui.screens.english.EnglishScreen
 import xyz.raidenhub.phim.ui.screens.english.EnglishDetailScreen
-import xyz.raidenhub.phim.ui.screens.english.EnglishPlayerScreen
 import xyz.raidenhub.phim.ui.screens.settings.SettingsScreen
 import xyz.raidenhub.phim.ui.theme.C
 
@@ -46,6 +48,25 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val context = LocalContext.current
+
+    // Helper: launch PlayerActivity
+    fun startPlayerActivity(slug: String, server: Int, episode: Int) {
+        context.startActivity(Intent(context, PlayerActivity::class.java).apply {
+            putExtra("slug", slug)
+            putExtra("server", server)
+            putExtra("episode", episode)
+        })
+    }
+
+    // Helper: launch EnglishPlayerActivity
+    fun startEnglishPlayerActivity(episodeId: String, mediaId: String, filmName: String) {
+        context.startActivity(Intent(context, EnglishPlayerActivity::class.java).apply {
+            putExtra("episodeId", episodeId)
+            putExtra("mediaId", mediaId)
+            putExtra("filmName", filmName)
+        })
+    }
 
     // Hide bottom bar on player/detail
     val showBottomBar = currentRoute in listOf(
@@ -164,8 +185,15 @@ fun AppNavigation() {
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
-                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onCategoryClick = { slug, title -> navController.navigate(Screen.Category.createRoute(slug, title)) }
+                    onMovieClick = { slug ->
+                        if (slug.startsWith("eng:")) {
+                            val mediaId = slug.removePrefix("eng:")
+                            navController.navigate(Screen.EnglishDetail.createRoute(mediaId))
+                        } else {
+                            navController.navigate(Screen.Detail.createRoute(slug))
+                        }
+                    },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
                 )
             }
 
@@ -199,39 +227,13 @@ fun AppNavigation() {
                 EnglishDetailScreen(
                     mediaId = mediaId,
                     onBack = { navController.popBackStack() },
-                    onPlay = { episodeId, mId ->
-                        navController.navigate(
-                            Screen.EnglishPlayer.createRoute(episodeId, mId, "")
-                        )
+                    onPlay = { episodeId, mId, filmName ->
+                        startEnglishPlayerActivity(episodeId, mId, filmName)
                     }
                 )
             }
 
-            // 🍿 English Player
-            composable(
-                Screen.EnglishPlayer.route,
-                arguments = listOf(
-                    navArgument("episodeId") { type = NavType.StringType },
-                    navArgument("mediaId") { type = NavType.StringType },
-                    navArgument("filmName") { type = NavType.StringType }
-                )
-            ) { entry ->
-                val episodeId = java.net.URLDecoder.decode(
-                    entry.arguments?.getString("episodeId") ?: "", "UTF-8"
-                )
-                val mId = java.net.URLDecoder.decode(
-                    entry.arguments?.getString("mediaId") ?: "", "UTF-8"
-                )
-                val filmName = java.net.URLDecoder.decode(
-                    entry.arguments?.getString("filmName") ?: "", "UTF-8"
-                )
-                EnglishPlayerScreen(
-                    episodeId = episodeId,
-                    mediaId = mId,
-                    filmName = filmName,
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            // 🍿 English Player — giờ chạy ở EnglishPlayerActivity riêng
 
             composable(Screen.Search.route) {
                 SearchScreen(
@@ -245,7 +247,13 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
                     onContinue = { slug, server, ep ->
-                        navController.navigate(Screen.Player.createRoute(slug, server, ep))
+                        startPlayerActivity(slug, server, ep)
+                    },
+                    onContinueEnglish = { episodeId, mediaId, filmName ->
+                        startEnglishPlayerActivity(episodeId, mediaId, filmName)
+                    },
+                    onEnglishDetailClick = { mediaId ->
+                        navController.navigate(Screen.EnglishDetail.createRoute(mediaId))
                     }
                 )
             }
@@ -262,7 +270,7 @@ fun AppNavigation() {
                 DetailScreen(
                     slug = slug,
                     onBack = { navController.popBackStack() },
-                    onPlay = { s, sv, ep -> navController.navigate(Screen.Player.createRoute(s, sv, ep)) },
+                    onPlay = { s, sv, ep -> startPlayerActivity(s, sv, ep) },
                     onSeasonClick = { seasonSlug -> navController.navigate(Screen.Detail.createRoute(seasonSlug)) }
                 )
             }
@@ -281,25 +289,11 @@ fun AppNavigation() {
                     animeId = id,
                     slug = slug,
                     onBack = { navController.popBackStack() },
-                    onPlay = { s, sv, ep -> navController.navigate(Screen.Player.createRoute(s, sv, ep)) }
+                    onPlay = { s, sv, ep -> startPlayerActivity(s, sv, ep) }
                 )
             }
 
-            composable(
-                Screen.Player.route,
-                arguments = listOf(
-                    navArgument("slug") { type = NavType.StringType },
-                    navArgument("server") { type = NavType.IntType },
-                    navArgument("episode") { type = NavType.IntType }
-                )
-            ) { entry ->
-                PlayerScreen(
-                    slug = entry.arguments?.getString("slug") ?: "",
-                    server = entry.arguments?.getInt("server") ?: 0,
-                    episode = entry.arguments?.getInt("episode") ?: 0,
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            // 🎬 Player — giờ chạy ở PlayerActivity riêng
 
             composable(
                 Screen.Category.route,

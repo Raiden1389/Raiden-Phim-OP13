@@ -35,6 +35,7 @@ interface ConsumetApi {
     @GET("movies/flixhq/watch")
     suspend fun getStreamLinks(
         @Query("episodeId") episodeId: String,
-        @Query("mediaId") mediaId: String
+        @Query("mediaId") mediaId: String,
+        @Query("server") server: String = "vidcloud"
     ): ConsumetStreamResponse
 }

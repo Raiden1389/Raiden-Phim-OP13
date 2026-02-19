@@ -5,6 +5,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
+        android:name=".App"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="Raiden Phim"
@@ -15,12 +16,31 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Separate Activity cho Player — fullscreen riêng, không share insets -->
+        <activity
+            android:name=".PlayerActivity"
+            android:theme="@style/Theme.RaidenPhim.Fullscreen"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:screenOrientation="fullSensor"
+            android:exported="false" />
+
+        <!-- Separate Activity cho English Player -->
+        <activity
+            android:name=".EnglishPlayerActivity"
+            android:theme="@style/Theme.RaidenPhim.Fullscreen"
+            android:supportsPictureInPicture="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:screenOrientation="sensorLandscape"
+            android:exported="false" />
     </application>
 </manifest>

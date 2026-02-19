@@ -1,5 +1,155 @@
 # Raiden Phim — Changelog
 
+## v1.14.0 — 2026-02-19 (English Player Features)
+
+### ✨ New Features
+- **❤️ English Favorites** — Nút yêu thích trên EnglishDetailScreen, lưu riêng source `"english"` → hiện trong ❤️ row trên HomeScreen, tap navigate đúng EnglishDetail
+- **⏩ English Continue Watching** — Tự động lưu tiến độ xem phim English khi thoát player (`saveEnglishProgress`). Hiện trong "Xem tiếp" row trên HomeScreen + WatchHistoryScreen. Tap → resume đúng tập đúng vị trí
+- **🎞️ Quality Selector** — Nút chọn chất lượng video (AUTO/720P/1080P) trong English Player. Picker panel slide-up giống subtitle picker
+
+### 🔧 Technical Changes
+- `WatchHistoryManager`: Thêm `episodeId`, `filmName`, `isEnglish` helper vào `ContinueItem` + method `saveEnglishProgress()`
+- `EnglishPlayerViewModel`: Store all quality sources, expose `allSources`/`selectedQuality` flows, `selectQuality()` method
+- `HomeScreen`: Route `eng:` prefix slug → EnglishDetail. Unique key `slug_source` cho LazyRow tránh collision
+- `WatchHistoryScreen`: Thêm `onContinueEnglish` callback, phân biệt English vs Viet items
+- `AppNavigation`: Pass `filmName` qua onPlay, English callbacks cho WatchHistoryScreen
+- `EnglishDetailScreen`: `onPlay` signature mở rộng thêm `filmName` param
+
+## v1.13.0.4 — 2026-02-19 (Fullscreen Refactor — Separate Activity)
+
+### 🏗️ Architecture
+- **🎬 Separate PlayerActivity** — Tách Player ra Activity riêng (pattern Netflix/YouTube/NewPipe). Không share window/insets với MainActivity → không còn conflict với Scaffold/MaterialTheme
+- **🍿 Separate EnglishPlayerActivity** — Tương tự cho English Player
+- **🎨 Theme.RaidenPhim.Fullscreen** — Theme XML riêng cho player: black background, transparent bars, tắt contrast enforcement, cutout shortEdges
+
+### 🐛 Bugfix
+- **🖥️ Scrim navy/xám trên Android 15+** — Root cause: `isNavigationBarContrastEnforced` + `isStatusBarContrastEnforced` — Android 15+ tự inject scrim vào gesture area. Fix: tắt enforcement ở cả XML level lẫn runtime
+- **🖥️ Inset conflict** — Player cùng Activity với navigation → insets bị share. Fix: separate Activity = separate window = no conflict
+- **🔢 Version hiển thị sai** — Settings hardcode `v1.6.1`. Fix: dùng `BuildConfig.VERSION_NAME` + `BuildConfig.VERSION_CODE` tự động
+
+### 🔧 Technical
+- `PlayerActivity.kt` — Window fullscreen setup TRƯỚC `super.onCreate()`: cutout ALWAYS, contrast OFF, transparent bars, hide systemBars
+- `EnglishPlayerActivity.kt` — Tương tự, orientation sensorLandscape
+- `AndroidManifest.xml` — Register 2 Activity mới với `Theme.RaidenPhim.Fullscreen`
+- `AppNavigation.kt` — Thay `navController.navigate` → `startActivity(Intent)` cho cả 2 player
+- `PlayerScreen.kt` — Đơn giản hóa DisposableEffect: chỉ keep-screen-on + re-hide bars
+- `EnglishPlayerScreen.kt` — Bỏ `FLAG_FULLSCREEN` (deprecated), đơn giản hóa
+- `SettingsScreen.kt` — Dynamic version display via BuildConfig
+
+---
+
+## v1.13.0.2 — 2026-02-18 (Hotfix)
+
+### 🐛 Bugfix
+- **🖥️ Player bar màu lạ** — `themes.xml` bị đổi sang `NoActionBar.Fullscreen` gây bar trống trên Android 15+. Revert về `NoActionBar`
+- **🖥️ Video không fill màn hình / camera cutout** — `Theme.kt` SideEffect set `statusBarColor` mỗi recompose, can thiệp PlayerScreen. Fix: bỏ SideEffect khỏi Theme.kt, dùng `LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS` cho Android 11+
+- **📺 Detail screen hiện `? Tập tập`** — Filter bỏ giá trị `?` từ API
+
+---
+
+## v1.13.0.1 — 2026-02-18 (Fullscreen Fix + Data Loss Fix)
+
+### 🐛 Bugfix
+- **🖥️ Player không fullscreen** — `Theme.kt` SideEffect set `statusBarColor` liên tục → đè lên `hideSystemUI()` trong PlayerScreen. Fix: bỏ hardcode color trong Theme, để `themes.xml` lo
+- **📦 Favorites + Lịch sử mất khi update APK** — ProGuard rule `-keep class data.local.**` chỉ giữ top-level class, **KHÔNG giữ inner class** (`FavoriteItem`, `ContinueItem`, `SeriesConfig`). Mỗi build R8 đổi tên inner class → Gson fail → `catch` trả `emptyList()` → data "biến mất". Fix: thêm `-keep class **$*` cho nested classes
+
+### 🔧 Technical
+- `Theme.kt` — Bỏ `window.statusBarColor` + `window.navigationBarColor` trong SideEffect (đã set trong `themes.xml`)
+- `themes.xml` — Theme `android:Theme.Material.NoActionBar`
+- `proguard-rules.pro` — Thêm `-keep class data.local.**$* { *; }` + `-keepclassmembers` cho inner classes
+
+---
+
+## v1.13.0 — 2026-02-18 (Per-Country Intro/Outro Defaults)
+
+### ✨ New Features
+- **🌏 Per-country defaults** — Mark intro/outro 1 phim Hàn → áp dụng cho tất cả phim Hàn
+  - 3-level hierarchy: Per-series → Per-country → Country-based fallback
+  - Sau khi mark → dialog hỏi "Áp dụng cho tất cả phim [country]?"
+  - Country auto-detected từ API (Hàn Quốc, Trung Quốc, Nhật Bản, Mỹ...)
+- **📋 Config status display** — Bottom sheet hiển thị config source:
+  - "📌 Config riêng (series)" nếu có override
+  - "⭐ Mặc định Hàn Quốc" nếu dùng country default
+  - Hiển thị cả 2 nếu có override + country default
+- **🗑 Separate reset** — Xoá config riêng (series) hoặc mặc định (country) độc lập
+
+### 🔧 Technical
+- `IntroOutroManager.kt` — Thêm `getEffectiveConfig()`, `promoteToCountryDefault()`, `getCountryDefault()`, country display names
+- `PlayerViewModel` — Expose `country` as StateFlow cho PlayerScreen
+- `PlayerScreen.kt` — Promote dialog (AlertDialog), hierarchy-aware config display, separate reset buttons
+
+---
+
+
+
+### ✨ New Features
+- **⚙️ Player Settings (Gear icon)** — Icon bánh răng trên top bar player, mở bottom sheet cài đặt
+- **📌 Mark Intro/Outro per-series** — Đánh dấu intro start/end + outro start cho từng series
+  - Tap "Intro End" tại vị trí kết thúc intro → Skip Intro pill tự hiện khi player trong intro window
+  - Tap "Outro Start" tại vị trí bắt đầu credits → Auto-next trigger tại đó
+  - Intro Start optional (mặc định = đầu tập)
+  - Mỗi field độc lập — mark cái nào dùng cái đó
+- **🔄 Smart Auto-next** — Ưu tiên mark-based, fallback country-based nếu chưa mark
+- **🗑 Reset marks** — Xoá toàn bộ config cho series trong settings sheet
+
+### 🐛 Bugfix
+- **📦 Data mất khi cập nhật APK** — ProGuard obfuscate `FavoriteItem` + `ContinueItem` → Gson fail. Fix: `-keep class data.local.** { *; }`
+- **🖥️ Xoá `enableEdgeToEdge()`** — Root cause fullscreen conflict, app xem phim không cần
+
+### 🔧 Technical
+- `IntroOutroManager.kt` — Mới: manager lưu per-series intro/outro config (SharedPreferences + Gson)
+- `PlayerScreen.kt` — Gear icon + ModalBottomSheet + mark-based skip/auto-next + derivedStateOf cho showSkipIntro
+- `proguard-rules.pro` — Thêm `-keep class data.local.** { *; }` fix data loss
+- `MainActivity.kt` — Xoá `enableEdgeToEdge()` + init `IntroOutroManager`
+- `build.gradle.kts` — Thêm `-opt-in=ExperimentalMaterial3Api` compiler flag
+
+---
+
+## v1.11.0 — 2026-02-18 (OTT Premium Player UI)
+
+### ✨ New Features
+- **🎬 Premium Player Controls** — Redesign hoàn toàn player overlay theo mockup OTT (Netflix/VieON style)
+  - **Red gradient play/pause button** — Nút tròn đỏ gradient lớn ở giữa
+  - **Vertical brightness slider** — Thanh trượt dọc bên trái (icon ☀️, track trắng)
+  - **Vertical volume slider** — Thanh trượt dọc bên phải (icon 🔊, track đỏ)
+  - **Episode strip** — Dải tập phim cuộn ngang ở bottom, highlight tập đang xem
+  - **Aspect ratio + CC buttons** — Bottom left, icon buttons đẹp
+  - **Skip Intro pill** — Nút trắng bo tròn góc phải dưới
+  - **Speed pill** — Surface bo tròn thay vì Text background
+- **🔊 Audio Focus Handling** — Tự pause khi có cuộc gọi, resume khi xong
+- **📱 Picture-in-Picture (PiP)** — Hỗ trợ PiP (Android 8.0+) cho cả Vietnamese & English player
+- **🔄 Aspect Ratio Toggle** — Chuyển FIT/FILL mode
+
+### 🎨 UI/UX
+- **3-zone double-tap seek** — Tap trái (-10s), phải (+10s), giữa (play/pause) + haptic feedback
+- **Seek animation overlay** — Hiện ⏪/⏩ + số giây khi seek
+- **OTT-style controls layout** — Bố cục giống Netflix: top bar, center play, side sliders, bottom strip
+
+### 🔧 Technical
+- `PlayerScreen.kt` — Rewrite controls overlay (~300 dòng) theo mockup
+- `EnglishPlayerScreen.kt` — Thêm PiP + audio focus + giữ nguyên subtitle/vietsub
+- `AndroidManifest.xml` — `supportsPictureInPicture + configChanges`
+- Nuclear fullscreen: `FLAG_FULLSCREEN` + `WindowInsetsController` compat + native
+
+### 🐛 Bugfix
+- **📦 Data mất khi cập nhật APK** — R8/ProGuard obfuscate `FavoriteItem` + `ContinueItem` (package `data.local`) mỗi build khác tên class → Gson deserialize fail → `catch` trả `emptyList()` → data "mất". Fix: thêm `-keep class xyz.raidenhub.phim.data.local.** { *; }` vào `proguard-rules.pro`
+- **🖥️ Xoá `enableEdgeToEdge()`** — Root cause fullscreen conflict. `enableEdgeToEdge()` dùng `WindowInsetsController` mới đè lên deprecated `systemUiVisibility` flags → player không fullscreen được. App xem phim không cần edge-to-edge
+
+---
+
+## v1.10.1 — 2026-02-18 (English Player Fix + Nuclear Fullscreen)
+
+### 🐛 Bugfix
+- **Video không load (403)** — Đổi stream server từ UpCloud → VidCloud. UpCloud trả URL one-time-use bị expired ngay, VidCloud trả URL reusable
+- **Player không fullscreen** — Thay deprecated `systemUiVisibility` flags bằng `WindowInsetsController` hiện đại, tương thích `enableEdgeToEdge()`
+- **Race condition Referer** — Thay `delay(300)` cố định bằng retry loop 10×300ms chờ Referer header arrive
+
+### 🔧 Technical
+- `ConsumetApi.kt` — Thêm `server=vidcloud` default cho `getStreamLinks()`
+- `PlayerScreen.kt` + `EnglishPlayerScreen.kt` — Fullscreen dùng `WindowCompat.getInsetsController()` + `hide(systemBars())`
+
+---
+
 ## v1.9.2 — 2026-02-18 (Vietsub & Player Fix)
 
 ### ✨ New Features
