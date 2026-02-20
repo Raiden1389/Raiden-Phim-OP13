@@ -40,7 +40,7 @@
 - [ ] #31 Dark/Light theme toggle
 - [ ] #34 Notification tập mới
 - [x] #40 Season Grouping 📺 — detect multi-season, horizontal scroll chọn phần
-- [x] #41 English Tab (Consumet/FlixHQ) — Tab 🍿 English với Trending, Recent Movies, Recent Shows
+- [x] #41 English Tab (Consumet/FlixHQ) — Tab 🍿 English với Trending, Recent Movies, Recent Shows ✅ **Đã xóa** (chậm, lag, Consumet không ổn định)
 - [x] #42 Consumet Player Integration — stream M3U8 + subtitle picker cho phim English
 - [ ] #43 OpenSubtitles API Key — đăng ký opensubtitles.com để kích hoạt nguồn sub thứ 5
 - [ ] #44 English Search — tìm kiếm phim English bằng Consumet search API
@@ -49,5 +49,18 @@
 - [x] #47 Donghua Section 🐉 — mục Hoạt Hình Trung Quốc trên tab Anime (search-based, curated keywords)
 - [x] #48 Genre Search 🔍 — bấm genre chip → search API lấy anime theo thể loại
 - [x] #49 See More Buttons › — nút "Xem thêm" trên section headers (Trending, Mới Cập Nhật, Sắp Chiếu)
-- [ ] #50 See More Navigation — điều hướng khi bấm "Xem thêm" (mở list full cho mỗi section)
+- [x] #50 See More Navigation — điều hướng khi bấm "Xem thêm" (mở list full → CategoryScreen đã có)
+- [x] #50b Infinite scroll fix — phim-le + tv-shows KKPhim chỉ hiện 10 item → đã fix (dùng totalPages từ API thay vì tự tính)
 - [ ] #51 Donghua Style Filter — tận dụng API `animeStyles` field để filter chính xác hơn
+
+## 🐛 Bugs Known
+- [x] #BUG-1 **Data loss khi update APK** 🔴 — favorites + watch history bị mất khi install over APK ✅ Fixed
+- [ ] #BUG-2 Consumet trending timeout — Vercel cold start gây timeout đôi khi
+
+## 🎮 Player Features (từ backlog nội bộ)
+- [ ] #52 Subtitle style settings — font, size, color, background opacity
+- [ ] #53 Customizable subtitle position — điều chỉnh vị trí sub trên/dưới
+- [ ] #54 Long press speed 2x — giữ màn hình để xem 2x, thả về bình thường
+
+## 🗑️ Tech Debt
+- [ ] #TD-1 Xóa Extractor folder (11MB) — thư viện không dùng làm phình APK

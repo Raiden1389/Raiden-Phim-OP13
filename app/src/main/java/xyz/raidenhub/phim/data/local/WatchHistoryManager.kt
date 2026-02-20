@@ -38,13 +38,9 @@ object WatchHistoryManager {
         @SerializedName("epName") val epName: String = "",
         @SerializedName("positionMs") val positionMs: Long = 0,
         @SerializedName("durationMs") val durationMs: Long = 0,
-        @SerializedName("lastWatched") val lastWatched: Long = System.currentTimeMillis(),
-        // English (Consumet) specific fields
-        @SerializedName("episodeId") val episodeId: String = "",
-        @SerializedName("filmName") val filmName: String = ""
+        @SerializedName("lastWatched") val lastWatched: Long = System.currentTimeMillis()
     ) {
         val progress: Float get() = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
-        val isEnglish: Boolean get() = source == "english"
     }
 
     fun init(context: Context) {
@@ -82,33 +78,6 @@ object WatchHistoryManager {
         current.removeAll { it.slug == slug }
         _continueList.value = current
         saveContinue(current)
-    }
-
-    // ═══ English Continue Watching ═══
-
-    fun saveEnglishProgress(
-        mediaId: String, name: String, thumbUrl: String,
-        episodeId: String, filmName: String, epName: String,
-        positionMs: Long, durationMs: Long
-    ) {
-        val threshold = durationMs * 0.9
-        if (positionMs >= threshold && durationMs > 0) {
-            removeContinue(mediaId)
-            return
-        }
-        if (positionMs < 30_000) return
-
-        val current = _continueList.value.toMutableList()
-        current.removeAll { it.slug == mediaId }
-        current.add(0, ContinueItem(
-            slug = mediaId, name = name, thumbUrl = thumbUrl,
-            source = "english", epName = epName,
-            positionMs = positionMs, durationMs = durationMs,
-            episodeId = episodeId, filmName = filmName
-        ))
-        val trimmed = current.take(Constants.MAX_CONTINUE_ITEMS)
-        _continueList.value = trimmed
-        saveContinue(trimmed)
     }
 
     // ═══ Watched Episodes ═══

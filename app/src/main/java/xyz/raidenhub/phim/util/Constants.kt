@@ -5,7 +5,6 @@ object Constants {
     const val OPHIM_BASE_URL  = "https://ophim1.com/v1/api/"
     const val KKPHIM_BASE_URL = "https://phimapi.com/"
     const val ANIME47_BASE_URL = "https://anime47.love/api/"
-    const val CONSUMET_BASE_URL = "https://consumet-api-ten-chi.vercel.app/"
 
     // ═══ Image CDNs ═══
     const val OPHIM_IMG_CDN  = "https://img.ophim.live/uploads/movies/"

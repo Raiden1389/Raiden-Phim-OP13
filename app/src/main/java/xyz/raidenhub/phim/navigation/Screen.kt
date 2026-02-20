@@ -20,14 +20,4 @@ sealed class Screen(val route: String) {
     data object AnimeDetail : Screen("anime_detail/{id}/{slug}") {
         fun createRoute(id: Int, slug: String) = "anime_detail/$id/$slug"
     }
-    data object English : Screen("english")
-    data object EnglishDetail : Screen("english_detail/{mediaId}") {
-        fun createRoute(mediaId: String) = "english_detail/${java.net.URLEncoder.encode(mediaId, "UTF-8")}"
-    }
-    data object EnglishPlayer : Screen("english_player/{episodeId}/{mediaId}/{filmName}") {
-        fun createRoute(episodeId: String, mediaId: String, filmName: String) =
-            "english_player/${java.net.URLEncoder.encode(episodeId, "UTF-8")}/${java.net.URLEncoder.encode(mediaId, "UTF-8")}/${java.net.URLEncoder.encode(filmName, "UTF-8")}"
-    }
-    data object EnglishSearch : Screen("english_search")
 }
-

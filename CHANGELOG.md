@@ -1,5 +1,17 @@
 # Raiden Phim — Changelog
 
+## v1.14.0.1 — 2026-02-20 (Hotfix & Cleanup)
+
+### 🗑️ Removed
+- **🍿 English Tab** — Xóa toàn bộ Consumet/FlixHQ integration (EnglishScreen, EnglishDetailScreen, EnglishPlayerActivity, ConsumetApi). Lý do: Consumet API không ổn định (Vercel cold start timeout, lag, lỗi M3U8 intermittent)
+- Dọn dẹp: xóa `episodeId`, `filmName`, `isEnglish` khỏi `ContinueItem` + `saveEnglishProgress()` khỏi `WatchHistoryManager`
+
+### 🔧 Fix
+- **🔄 Infinite scroll Phim Lẻ** — CategoryScreen chỉ hiện 10 items rồi dừng. Root cause: tự tính `totalPages` từ `totalItems/perPage` trong khi API đã trả sẵn `totalPages`. Fix: dùng `pagination.totalPages` trực tiếp, fallback tính toán nếu null
+- **🔄 Infinite scroll TV Shows (KKPhim)** — Tương tự, cùng fix
+
+---
+
 ## v1.14.0 — 2026-02-19 (English Player Features)
 
 ### ✨ New Features

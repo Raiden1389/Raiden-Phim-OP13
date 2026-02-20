@@ -34,13 +34,5 @@
             android:screenOrientation="fullSensor"
             android:exported="false" />
 
-        <!-- Separate Activity cho English Player -->
-        <activity
-            android:name=".EnglishPlayerActivity"
-            android:theme="@style/Theme.RaidenPhim.Fullscreen"
-            android:supportsPictureInPicture="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
-            android:screenOrientation="sensorLandscape"
-            android:exported="false" />
     </application>
 </manifest>

@@ -92,13 +92,17 @@ class CategoryViewModel : ViewModel() {
                     }
                 }
 
-                // Calculate totalPages from API response
+                // Use totalPages directly from API — already computed server-side
                 val pagination = response.data?.params?.pagination
-                val totalItems = pagination?.totalItems ?: 0
-                val perPage = pagination?.totalItemsPerPage ?: 24
-                totalPages = if (perPage > 0) {
-                    (totalItems + perPage - 1) / perPage  // ceil division
-                } else 1
+                totalPages = when {
+                    pagination?.totalPages != null && pagination.totalPages > 0 -> pagination.totalPages
+                    pagination?.totalItems != null && pagination.totalItems > 0 -> {
+                        // Fallback: calculate if totalPages absent
+                        val perPage = pagination.totalItemsPerPage.takeIf { it > 0 } ?: 24
+                        (pagination.totalItems + perPage - 1) / perPage
+                    }
+                    else -> if (newMovies.isNotEmpty()) currentPage + 1 else currentPage
+                }
                 currentPage = page
 
                 if (replace) {

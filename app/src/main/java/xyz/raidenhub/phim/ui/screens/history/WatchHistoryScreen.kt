@@ -30,9 +30,7 @@ import xyz.raidenhub.phim.util.ImageUtils
 fun WatchHistoryScreen(
     onBack: () -> Unit,
     onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int) -> Unit,
-    onContinueEnglish: (episodeId: String, mediaId: String, filmName: String) -> Unit = {_, _, _ -> },
-    onEnglishDetailClick: (String) -> Unit = {}
+    onContinue: (slug: String, server: Int, episode: Int) -> Unit
 ) {
     val continueList by WatchHistoryManager.continueList.collectAsState()
 
@@ -80,11 +78,7 @@ fun WatchHistoryScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(C.Surface)
                             .clickable {
-                                if (item.isEnglish) {
-                                    onContinueEnglish(item.episodeId, item.slug, item.filmName)
-                                } else {
-                                    onContinue(item.slug, item.server, item.episode)
-                                }
+                                onContinue(item.slug, item.server, item.episode)
                             }
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
