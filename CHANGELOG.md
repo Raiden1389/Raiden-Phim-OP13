@@ -1,5 +1,99 @@
 # Raiden Phim — Changelog
 
+## v1.17.0 — 2026-02-21 (Home Screen Enhancements)
+
+### ✨ New Features
+
+#### 🏠 Home Screen
+- **🚫 Hero Carousel Filter (H-1)** — Long press bất kỳ slide trên Hero Carousel → Dropdown menu "🚫 Bỏ qua phim này" → ẩn khỏi carousel. Slides còn lại slide in liền mạch. `HeroFilterManager` lưu persistent qua SharedPreferences
+- **🗂️ Reorder Home Sections (H-6)** — Settings → mục "Sắp xếp trang chủ": nút ↑↓ cho từng row (Phim Mới / K-Drama / Phim Bộ / Phim Lẻ / Hoạt Hình / TV Shows). Thứ tự được ghi nhớ ngay lập tức. Nút "↺ Khôi phục mặc định". `SectionOrderManager` lưu persistent
+- **📺 TV Shows Home Row Fix (#50b)** — KKPhim API trả 10 item/trang → Home row chỉ hiện 10 phim. Fix: fetch page 1 + page 2 song song (async) → merge → `distinctBy { slug }` dedup → ~20 item trên row
+
+#### ⚙️ Settings
+- **🚫 Phim bị ẩn khỏi Carousel (H-1)** — Section mới trong Settings: đếm số phim đang bị ẩn + nút "Hiện lại tất cả" để reset `HeroFilterManager`
+- **🗂️ Sắp xếp trang chủ (H-6)** — Section mới trong Settings: danh sách 6 section với nút ↑↓ + "↺ Khôi phục mặc định"
+
+### 🐛 Bug Fix
+- **Continue Watching typo** — Fix "phìm" → "phim" trong badge đếm số lượng
+
+### 🔧 Technical
+- **`HeroFilterManager.kt`** — Object singleton, `SharedPreferences` + `MutableStateFlow<Set<String>>`. API: `hide(slug)`, `isHidden(slug)`, `clearAll()`, `hiddenCount`
+- **`SectionOrderManager.kt`** — Object singleton, `SharedPreferences` + `MutableStateFlow<List<String>>`. API: `moveUp(id)`, `moveDown(id)`, `reorder(list)`, `reset()`, `getSectionInfo(id)`
+- Init cả 2 manager trong `App.kt` cùng với các manager khác
+- **`HomeScreen.kt`** — `sectionOrder` collected ở composable scope, iterate để render rows theo đúng thứ tự user đã set. `HeroCarousel` filter bằng `hiddenSlugs` trước khi pass `movies`
+- **`MovieRepository.kt`** — TV Shows: `async { kkApi.getTvShows(1) } + async { kkApi.getTvShows(2) }` song song
+
+---
+
+## v1.16.0 — 2026-02-20 (UX Polish — Home, Search & Detail)
+
+### ✨ New Features
+
+#### 🏠 Home Screen
+- **⚡ Quick Play (H-7)** — Long-press bất kỳ movie card trên Home (tất cả rows) → haptic feedback + launch player ngay (server 0, episode 0), bỏ qua màn hình Detail
+- **🕐 Relative Timestamps (H-8)** — Continue Watching cards hiển thị thời gian tương đối ("3m trước", "2h trước", "2 ngày") thay vì timestamp tuyệt đối
+- **🎬 Continue Watching Redesign** — Cards cũ (dọc 2:3) → landscape 16:9 theo phong cách Netflix: play icon overlay, progress bar dưới đáy, chip tập + chip thời gian, click → resume trực tiếp không qua Detail
+
+#### 🔍 Search Screen
+- **🏷️ In-results Filter (S-1)** — Sau khi có kết quả: chip row **Tất cả / 📺 Phim bộ / 🎬 Phim lẻ** + chip năm lấy từ danh sách kết quả (tối đa 6 năm gần nhất). Dùng `episodeCurrent` heuristic vì `Movie.type` không có trong search response
+- **🎥 Genre Quick Search (S-2)** — Row 10 chip thể loại nổi bật (🥊 Hành động / 💖 Tình cảm / 👻 Kinh dị / 🎠 Hoạt hình / 🚀 Viễn tưởng / 🏯 Cổ trang...) hiển thị khi chưa gõ gì → tap → tìm kiếm ngay
+- **🔤 Smart Keyword Normalize (S-3)** — Map từ không dấu → có dấu: "han quoc" → "Hàn Quốc", "hanh dong" → "Hành động", "kinh di" → "Kinh dị", "hoat hinh" → "Hoạt hình"... Áp dụng cả khi gõ thông thường và voice search
+- **📊 Sort Search Results (S-4)** — Dropdown button bên phải result count: **🕒 Mới nhất** (year desc) / **📋 Cũ nhất** (year asc) / **🔤 Tên A-Z** (alphabetical)
+
+#### 🎬 Detail Screen
+- **🍅 TMDB Rating (D-3)** — Fetch TMDB score song song với IMDb (reuse cùng `LaunchedEffect`, cùng OkHttp client). Hiển thị "🍅 TMDB 7.8/10" kế bên "⭐ IMDb 8.1/10" trong info chip row
+- **📖 Expand/Collapse Plot Redesign (D-7)** — Thêm gradient fade overlay phía dưới khi plot bị thu gọn (đẹp hơn, không bị cắt cứng). `lineHeight = 20.sp` để dễ đọc hơn. Nút "Xem thêm ▼ / Thu gọn ▲"
+
+### 🔧 Technical
+- **`MovieCard.kt`** — Thêm optional `onLongClick: (() -> Unit)? = null` parameter. Nếu caller truyền vào → override default (favorite toggle). Nếu không → giữ hành vi cũ. Cho phép HomeScreen inject Quick Play logic
+- **`SearchScreen.kt`** — Full rewrite để fix cấu trúc file lộn xộn (package statement bị đẩy giữa file do partial apply). Thêm `KEYWORD_MAP`, `GENRE_CHIPS`, `SearchSort` enum, `normalizeKeyword()` function
+- **`HomeScreen.kt`** — Fix import `HapticFeedbackType` từ `foundation.hapticfeedback` → `ui.hapticfeedback` (đúng package). Tương tự fix type annotation trong `MovieRowSection` parameter
+- **`DetailScreen.kt`** — Refactor IMDb fetch: bỏ nested `Dispatchers.IO.let { }` wrapper → dùng `withContext` trực tiếp. TMDB fetch dùng chung `OkHttpClient` instance
+
+### 🐛 Bugfix
+- **`SearchScreen` compile error** — `Movie.type` không tồn tại trong data class (chỉ có trong `MovieDetail`). Fix: dùng `episodeCurrent.contains("full")` heuristic thay thế
+- **`HomeScreen` compile error** — `HapticFeedbackType` resolve fail vì import sai package (`foundation.hapticfeedback` không tồn tại). Fix: dùng `ui.hapticfeedback`
+
+---
+
+## v1.15.0 — 2026-02-20 (Discovery & Library Update)
+
+### ✨ New Features
+
+#### 🗂️ Categories & Discovery
+- **📅 Year Filter (C-1)** — Chip row năm (Tất cả / 2025 / 2024 ... 2018) trong CategoryScreen, filter phía client theo `movie.year`. Kết hợp với country filter đã có → 2 chiều lọc độc lập
+- **🗺️ Genre Hub (C-2)** — Screen thể loại mới: grid icon các thể loại (Hành động, Kinh dị, Tình cảm...) → tap → CategoryScreen lọc theo genre. Truy cập qua bottom nav tab Khám phá
+
+#### 🔖 Watchlist & Playlists
+- **🔖 Xem Sau — Watchlist (C-4)** — Bookmark phim để xem sau. Icon 🔖 trên Detail screen. Screen riêng hiển thị grid thumbnail + timestamp tương đối. Swipe / long-press để xóa. Lưu persistent qua `SharedPreferences`
+- **📋 User Playlists (C-5)** — Tạo playlist thủ công (\"Xem Cuối Tuần\", \"List Gia Đình\"...). PlaylistListScreen: tạo mới, đổi tên, xóa. PlaylistDetailScreen: grid phim trong playlist, remove item. Nút \"+ Playlist\" từ Detail screen mở bottom sheet chọn playlist
+
+#### 🎬 Detail Screen
+- **🎞️ Phim liên quan (D-5)** — Row \"Có thể bạn thích\" cuối Detail: fetch phim cùng thể loại đầu tiên, hiển thị LazyRow horizontal 12 poster, tap → Detail phim đó
+- **🎭 Cast Grid (D-6)** — Danh sách diễn viên từ `actor` field dạng horizontal scroll với avatar placeholder và tên
+- **🔀 Episode Sort Toggle (D-8)** — Button đảo thứ tự tập 1→N / N→1 bằng `reversedOrder` state, ghi nhớ trong session
+
+#### ⚙️ Settings
+- **🎯 Default Playback Quality (SE-1)** — Chọn chất lượng mặc định khi khởi động player: Auto / 360p / 480p / 720p / 1080p. Lưu qua `SettingsManager`
+- **💾 Export / Import Backup (SE-6)** — Xuất favorites + watch history + watchlist + playlists ra file JSON (SAF file picker). Import từ file → confirm dialog trước khi ghi đè. Tương thích chia sẻ giữa thiết bị
+
+### 🔧 Technical
+- `WatchlistManager` — Singleton quản lý watchlist: `add`, `remove`, `toggle`, `isInWatchlist`, `clearAll`. State `MutableStateFlow<List<WatchlistItem>>`
+- `PlaylistManager` — Singleton quản lý playlists: `createPlaylist`, `deletePlaylist`, `renamePlaylist`, `addToPlaylist`, `removeFromPlaylist`, `isInPlaylist`. State `MutableStateFlow<List<Playlist>>`
+- `SettingsManager` — Thêm `defaultQuality`/`setDefaultQuality`, `exportBackup`/`importBackup`
+- `App.kt` — Init `WatchlistManager` + `PlaylistManager` trong `onCreate`
+- `Screen.kt` — Thêm routes: `Watchlist`, `PlaylistList`, `PlaylistDetail`, `GenreHub`
+- `AppNavigation.kt` — Wire up 4 route mới; `DetailScreen` nhận `onMovieClick` cho related movies
+- `ConsumetSubtitle` model — Thêm missing data class vào `SubtitleModels.kt` (pre-existing compile error)
+
+### 🐛 Bugfix
+- **DetailScreen compile error** — `remember`/`LaunchedEffect` trong `LazyListScope` không phải `@Composable` context → hoist `relatedMovies` state lên trước `LazyColumn`
+- **CategoryScreen bracket mismatch** — Year filter chips bị nest trong country `Row` → tách ra `Row` độc lập
+- **WatchlistScreen duplicate** — Conflict `WatchlistScreens.kt` vs `WatchlistScreen.kt` → xóa file thừa
+- **`ExperimentalFoundationApi`** — Remove `@OptIn` + `combinedClickable` (chưa import đúng) → dùng `clickable`
+
+---
+
 ## v1.14.0.1 — 2026-02-20 (Hotfix & Cleanup)
 
 ### 🗑️ Removed

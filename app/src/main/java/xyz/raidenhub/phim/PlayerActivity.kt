@@ -53,6 +53,7 @@ class PlayerActivity : ComponentActivity() {
         val slug = intent.getStringExtra("slug") ?: ""
         val server = intent.getIntExtra("server", 0)
         val episode = intent.getIntExtra("episode", 0)
+        val positionMs = intent.getLongExtra("positionMs", 0L)
 
         setContent {
             RaidenPhimTheme {
@@ -60,6 +61,7 @@ class PlayerActivity : ComponentActivity() {
                     slug = slug,
                     server = server,
                     episode = episode,
+                    startPositionMs = positionMs,
                     onBack = { finish() }
                 )
             }

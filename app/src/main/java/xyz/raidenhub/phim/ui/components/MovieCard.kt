@@ -34,6 +34,7 @@ import xyz.raidenhub.phim.util.TextUtils
 fun MovieCard(
     movie: Movie,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -45,7 +46,7 @@ fun MovieCard(
             .clip(RoundedCornerShape(8.dp))
             .combinedClickable(
                 onClick = onClick,
-                onLongClick = {
+                onLongClick = onLongClick ?: {
                     val added = FavoriteManager.toggle(movie.slug, movie.name, movie.thumbUrl)
                     Toast.makeText(
                         context,

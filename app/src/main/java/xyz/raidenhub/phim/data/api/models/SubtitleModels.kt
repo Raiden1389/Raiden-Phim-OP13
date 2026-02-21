@@ -26,6 +26,12 @@ data class SubtitleResult(
     val displayName: String get() = "$flag $languageLabel ($source)"
 }
 
+// ═══ Consumet Subtitle (from stream API response) ═══
+data class ConsumetSubtitle(
+    val url: String = "",
+    val lang: String = ""
+)
+
 // ═══ SubDL Response ═══
 data class SubDLResponse(
     @SerializedName("status") val status: Boolean = false,

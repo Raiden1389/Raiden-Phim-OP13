@@ -27,10 +27,14 @@ import xyz.raidenhub.phim.PlayerActivity
 import xyz.raidenhub.phim.ui.screens.anime.AnimeScreen
 import xyz.raidenhub.phim.ui.screens.category.CategoryScreen
 import xyz.raidenhub.phim.ui.screens.detail.DetailScreen
+import xyz.raidenhub.phim.ui.screens.genre.GenreHubScreen
 import xyz.raidenhub.phim.ui.screens.history.WatchHistoryScreen
 import xyz.raidenhub.phim.ui.screens.home.HomeScreen
 import xyz.raidenhub.phim.ui.screens.search.SearchScreen
 import xyz.raidenhub.phim.ui.screens.settings.SettingsScreen
+import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistDetailScreen
+import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistListScreen
+import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
 import xyz.raidenhub.phim.ui.theme.C
 
 // #39 — Animated transition specs
@@ -47,15 +51,16 @@ fun AppNavigation() {
     val context = LocalContext.current
 
     // Helper: launch PlayerActivity
-    fun startPlayerActivity(slug: String, server: Int, episode: Int) {
+    fun startPlayerActivity(slug: String, server: Int, episode: Int, positionMs: Long = 0L) {
         context.startActivity(Intent(context, PlayerActivity::class.java).apply {
             putExtra("slug", slug)
             putExtra("server", server)
             putExtra("episode", episode)
+            putExtra("positionMs", positionMs)
         })
     }
 
-    // Hide bottom bar on player/detail
+    // Hide bottom bar on non-tab screens
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route, Screen.Search.route, Screen.Favorites.route,
         Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route
@@ -160,6 +165,9 @@ fun AppNavigation() {
                     onMovieClick = { slug ->
                         navController.navigate(Screen.Detail.createRoute(slug))
                     },
+                    onContinue = { slug, server, ep, positionMs ->
+                        startPlayerActivity(slug, server, ep, positionMs)
+                    },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
                 )
             }
@@ -203,7 +211,8 @@ fun AppNavigation() {
                     slug = slug,
                     onBack = { navController.popBackStack() },
                     onPlay = { s, sv, ep -> startPlayerActivity(s, sv, ep) },
-                    onSeasonClick = { seasonSlug -> navController.navigate(Screen.Detail.createRoute(seasonSlug)) }
+                    onSeasonClick = { seasonSlug -> navController.navigate(Screen.Detail.createRoute(seasonSlug)) },
+                    onMovieClick = { movieSlug -> navController.navigate(Screen.Detail.createRoute(movieSlug)) }
                 )
             }
 
@@ -237,6 +246,49 @@ fun AppNavigation() {
                     title = entry.arguments?.getString("title") ?: "",
                     onBack = { navController.popBackStack() },
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                )
+            }
+
+            // C-4: Watchlist (Xem Sau)
+            composable(Screen.Watchlist.route) {
+                WatchlistScreen(
+                    onBack = { navController.popBackStack() },
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                )
+            }
+
+            // C-5: Playlist list
+            composable(Screen.PlaylistList.route) {
+                PlaylistListScreen(
+                    onBack = { navController.popBackStack() },
+                    onPlaylistClick = { id, name ->
+                        navController.navigate(Screen.PlaylistDetail.createRoute(id, name))
+                    }
+                )
+            }
+
+            // C-5: Playlist detail
+            composable(
+                Screen.PlaylistDetail.route,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("name") { type = NavType.StringType }
+                )
+            ) { entry ->
+                PlaylistDetailScreen(
+                    playlistId = entry.arguments?.getString("id") ?: "",
+                    onBack = { navController.popBackStack() },
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                )
+            }
+
+            // C-2: Genre Hub
+            composable(Screen.GenreHub.route) {
+                GenreHubScreen(
+                    onBack = { navController.popBackStack() },
+                    onGenreClick = { slug, name ->
+                        navController.navigate(Screen.Category.createRoute(slug, name))
+                    }
                 )
             }
         }

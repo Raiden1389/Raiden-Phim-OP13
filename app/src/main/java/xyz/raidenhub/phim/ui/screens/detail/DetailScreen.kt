@@ -42,7 +42,9 @@ import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.api.models.MovieDetail
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.data.local.FavoriteManager
+import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
+import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.util.ImageUtils
 import xyz.raidenhub.phim.util.TextUtils
@@ -74,6 +76,7 @@ fun DetailScreen(
     onBack: () -> Unit,
     onPlay: (slug: String, server: Int, episode: Int) -> Unit,
     onSeasonClick: (slug: String) -> Unit = {},
+    onMovieClick: (slug: String) -> Unit = {},
     vm: DetailViewModel = viewModel()
 ) {
     LaunchedEffect(slug) { vm.load(slug) }
@@ -99,32 +102,52 @@ fun DetailScreen(
             var selectedServer by remember { mutableIntStateOf(0) }
             val isFav = favorites.any { it.slug == slug }
             val watchedSet = watchedMap[slug] ?: emptySet()
+            // C-4: Watchlist state
+            val watchlistItems by WatchlistManager.items.collectAsState()
+            val isWatchlisted = watchlistItems.any { it.slug == slug }
+            // C-5: Playlist sheet
+            val playlists by PlaylistManager.playlists.collectAsState()
+            var showPlaylistSheet by remember { mutableStateOf(false) }
 
             // #20 — Detect continue watching position
             val continueItem = continueList.find { it.slug == slug }
             val continueEp = continueItem?.episode ?: 0
             val hasContinue = continueItem != null
+            // D-8: Episode sort
+            var episodeSortAsc by remember { mutableStateOf(true) }
 
             // #17 — Fetch IMDb rating from OMDB API
             var imdbRating by remember { mutableStateOf<String?>(null) }
+            // D-3 — Fetch TMDB rating
+            var tmdbRating by remember { mutableStateOf<String?>(null) }
             LaunchedEffect(movie.originName, movie.name) {
-                kotlinx.coroutines.Dispatchers.IO.let { io ->
-                    kotlinx.coroutines.withContext(io) {
-                        try {
-                            val title = movie.originName.ifBlank { movie.name }
-                            val year = if (movie.year > 0) "&y=${movie.year}" else ""
-                            val url = "https://www.omdbapi.com/?apikey=2692d710&t=${java.net.URLEncoder.encode(title, "UTF-8")}$year"
-                            val client = OkHttpClient()
-                            val request = Request.Builder().url(url).build()
-                            val response = client.newCall(request).execute()
-                            val body = response.body?.string() ?: ""
-                            val json = JSONObject(body)
-                            if (json.optString("Response") == "True") {
-                                val rating = json.optString("imdbRating", "N/A")
-                                if (rating != "N/A") imdbRating = rating
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val title = movie.originName.ifBlank { movie.name }
+                        val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
+                        val year = if (movie.year > 0) "&y=${movie.year}" else ""
+                        // IMDb via OMDB
+                        val omdbUrl = "https://www.omdbapi.com/?apikey=2692d710&t=$encodedTitle$year"
+                        val client = OkHttpClient()
+                        val omdbResp = client.newCall(Request.Builder().url(omdbUrl).build()).execute()
+                        val omdbJson = JSONObject(omdbResp.body?.string() ?: "")
+                        if (omdbJson.optString("Response") == "True") {
+                            val rating = omdbJson.optString("imdbRating", "N/A")
+                            if (rating != "N/A") imdbRating = rating
+                        }
+                        // D-3: TMDB search → vote_average
+                        val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?api_key=4a6aef11e0f5ff2aff6f3f2e6b4af3c3&query=$encodedTitle&language=vi-VN"
+                        val tmdbResp = client.newCall(Request.Builder().url(tmdbSearchUrl).build()).execute()
+                        val tmdbJson = JSONObject(tmdbResp.body?.string() ?: "")
+                        val tmdbResults = tmdbJson.optJSONArray("results")
+                        if (tmdbResults != null && tmdbResults.length() > 0) {
+                            val firstResult = tmdbResults.getJSONObject(0)
+                            val voteAvg = firstResult.optDouble("vote_average", 0.0)
+                            if (voteAvg > 0.0) {
+                                tmdbRating = String.format("%.1f", voteAvg)
                             }
-                        } catch (_: Exception) { }
-                    }
+                        }
+                    } catch (_: Exception) { }
                 }
             }
 
@@ -148,6 +171,22 @@ fun DetailScreen(
                                 }.sortedBy {
                                     seasonRegex.find(it.name)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                                 }
+                            }
+                    }
+                }
+            }
+
+            // D-5: Related movies — fetch by first genre
+            var relatedMovies by remember { mutableStateOf<List<Movie>>(emptyList()) }
+            val firstGenre = movie.category.firstOrNull()?.slug ?: ""
+            LaunchedEffect(slug, firstGenre) {
+                if (firstGenre.isNotBlank()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        MovieRepository.search(firstGenre)
+                            .onSuccess { results ->
+                                relatedMovies = results
+                                    .filter { it.slug != slug }
+                                    .take(12)
                             }
                     }
                 }
@@ -215,12 +254,8 @@ fun DetailScreen(
                         }
                         // Favorite toggle
                         IconButton(
-                            onClick = {
-                                FavoriteManager.toggle(slug, movie.name, movie.thumbUrl)
-                            },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(C.Surface, RoundedCornerShape(12.dp))
+                            onClick = { FavoriteManager.toggle(slug, movie.name, movie.thumbUrl) },
+                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
                         ) {
                             Icon(
                                 if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -228,6 +263,20 @@ fun DetailScreen(
                                 tint = if (isFav) C.Primary else C.TextSecondary,
                                 modifier = Modifier.size(24.dp)
                             )
+                        }
+                        // C-4: Watchlist toggle
+                        IconButton(
+                            onClick = { WatchlistManager.toggle(slug, movie.name, movie.thumbUrl) },
+                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
+                        ) {
+                            Text(if (isWatchlisted) "🔖" else "🔇", fontSize = 20.sp)
+                        }
+                        // C-5: Add to playlist
+                        IconButton(
+                            onClick = { showPlaylistSheet = true },
+                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
+                        ) {
+                            Text("📋", fontSize = 20.sp)
                         }
                     }
                 }
@@ -237,6 +286,7 @@ fun DetailScreen(
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         val infos = buildList {
                             if (imdbRating != null) add("⭐ IMDb $imdbRating/10")
+                            if (tmdbRating != null) add("🍅 TMDB $tmdbRating/10")
                             if (movie.year > 0) add("📅 ${movie.year}")
                             if (movie.country.isNotEmpty()) add("🌍 ${movie.country.joinToString { it.name }}")
                             if (movie.time.isNotBlank() && !movie.time.contains("?")) add("⏱ ${movie.time}")
@@ -281,30 +331,76 @@ fun DetailScreen(
                             )
                         }
 
-                        // #19 — Actors
+                        // D-6: Cast grid — scrollable horizontal row of actor chips
                         if (movie.actor.isNotEmpty() && movie.actor.any { it.isNotBlank() }) {
+                            val actors = movie.actor.filter { it.isNotBlank() }
                             Text(
-                                "🎭 Diễn viên: ${movie.actor.filter { it.isNotBlank() }.take(8).joinToString(", ")}",
+                                "🎭 Diễn viên:",
                                 color = C.TextSecondary,
                                 fontSize = 13.sp,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(bottom = 12.dp)
+                                modifier = Modifier.padding(bottom = 4.dp)
                             )
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            ) {
+                                items(actors.take(12)) { actor ->
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.width(70.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .background(C.SurfaceVariant),
+                                            contentAlignment = Alignment.Center
+                                        ) { Text("👤", fontSize = 22.sp) }
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            actor.split(" ").lastOrNull() ?: actor,
+                                            color = C.TextSecondary,
+                                            fontSize = 10.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+                            }
                         }
 
-                        // #14 — Description (expandable)
+                        // #14 / D-7 — Description (expandable with gradient fade)
                         if (movie.content.isNotBlank()) {
                             val cleaned = movie.content.replace(Regex("<[^>]*>"), "").trim()
                             var expanded by remember { mutableStateOf(false) }
-                            Text(
-                                cleaned,
-                                color = C.TextSecondary,
-                                fontSize = 13.sp,
-                                maxLines = if (expanded) Int.MAX_VALUE else 4,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
+                            Box(modifier = Modifier.padding(bottom = 4.dp)) {
+                                Text(
+                                    cleaned,
+                                    color = C.TextSecondary,
+                                    fontSize = 13.sp,
+                                    lineHeight = 20.sp,
+                                    maxLines = if (expanded) Int.MAX_VALUE else 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                // Gradient fade overlay when collapsed
+                                if (!expanded) {
+                                    Box(
+                                        modifier = Modifier
+                                            .matchParentSize()
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.Transparent,
+                                                        C.Background.copy(alpha = 0.85f),
+                                                        C.Background
+                                                    ),
+                                                    startY = 30f
+                                                )
+                                            )
+                                    )
+                                }
+                            }
                             Text(
                                 if (expanded) "Thu gọn ▲" else "Xem thêm ▼",
                                 color = C.Primary,
@@ -385,27 +481,44 @@ fun DetailScreen(
                     }
                 }
 
-                // #21 — Episode grid with progress bars
+                // #21 — Episode grid with progress bars + D-8 sort toggle
                 if (episodes.isNotEmpty()) {
                     val eps = episodes.getOrNull(selectedServer)?.serverData.orEmpty()
+                    val displayEps = if (episodeSortAsc) eps else eps.reversed()
                     item {
-                        Text("Danh sách tập", color = C.TextPrimary, fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Danh sách tập", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            // D-8: Sort toggle
+                            if (eps.size > 1) {
+                                Text(
+                                    if (episodeSortAsc) "↓ Mới nhất" else "↑ Tập 1",
+                                    color = C.Primary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(C.Primary.copy(0.15f))
+                                        .clickable { episodeSortAsc = !episodeSortAsc }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
                     }
                     item {
-                        Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 80.dp)) {
-                            eps.chunked(5).forEach { row ->
+                        Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
+                            displayEps.chunked(5).forEach { row ->
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     row.forEachIndexed { _, ep ->
                                         val epIdx = eps.indexOf(ep)
                                         val isWatched = watchedSet.contains(epIdx)
                                         val epLabel = ep.name.ifBlank { "Tập ${epIdx + 1}" }
-                                        // #21 — Check if this episode has progress
                                         val epProgress = if (continueItem?.episode == epIdx) continueItem.progress else if (isWatched) 1f else 0f
 
-                                        Column(
-                                            modifier = Modifier.weight(1f)
-                                        ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = if (isWatched) "✓ $epLabel" else epLabel,
                                                 color = if (isWatched) C.Primary else C.TextPrimary,
@@ -419,7 +532,6 @@ fun DetailScreen(
                                                     .padding(vertical = 10.dp)
                                                     .wrapContentWidth(Alignment.CenterHorizontally)
                                             )
-                                            // Progress bar under episode button
                                             if (epProgress > 0f && epProgress < 1f) {
                                                 LinearProgressIndicator(
                                                     progress = { epProgress },
@@ -428,14 +540,12 @@ fun DetailScreen(
                                                     trackColor = C.Surface
                                                 )
                                             } else if (isWatched) {
-                                                // Full bar for watched
                                                 Box(Modifier.fillMaxWidth().height(3.dp).background(C.Primary))
                                             } else {
                                                 Spacer(Modifier.fillMaxWidth().height(3.dp))
                                             }
                                         }
                                     }
-                                    // Fill remaining cells
                                     repeat(5 - row.size) {
                                         Column(Modifier.weight(1f)) {
                                             Spacer(Modifier.fillMaxWidth().height(43.dp))
@@ -447,10 +557,101 @@ fun DetailScreen(
                         }
                     }
                 }
+
+                // D-5: Related movies (state hoisted to composable scope above LazyColumn — see state vars)
+                if (relatedMovies.isNotEmpty()) {
+                    item {
+                        Text(
+                            "🎞️ Có thể bạn thích",
+                            color = C.TextPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                    }
+                    item {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(bottom = 80.dp)
+                        ) {
+                            items(relatedMovies, key = { it.slug }) { related ->
+                                Column(
+                                    modifier = Modifier
+                                        .width(110.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable { onMovieClick(related.slug) }
+                                ) {
+                                    AsyncImage(
+                                        model = ImageUtils.cardImage(related.thumbUrl, related.source),
+                                        contentDescription = related.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(2f / 3f)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(C.Surface)
+                                    )
+                                    Text(
+                                        related.name,
+                                        color = C.TextPrimary,
+                                        fontSize = 11.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    item { Spacer(Modifier.height(80.dp)) }
+                }
             }
-        }
-    }
-}
+
+            // C-5: Playlist bottom sheet
+            if (showPlaylistSheet) {
+                AlertDialog(
+                    onDismissRequest = { showPlaylistSheet = false },
+                    title = { Text("📋 Thêm vào Playlist", color = C.TextPrimary) },
+                    text = {
+                        if (playlists.isEmpty()) {
+                            Text("Chưa có playlist nào. Tạo playlist trong Mục Playlist.", color = C.TextSecondary)
+                        } else {
+                            Column {
+                                playlists.forEach { pl ->
+                                    val inList = PlaylistManager.isInPlaylist(pl.id, slug)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                if (inList) PlaylistManager.removeFromPlaylist(pl.id, slug)
+                                                else PlaylistManager.addToPlaylist(pl.id, slug, movie.name, movie.thumbUrl)
+                                            }
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(pl.name, color = C.TextPrimary, fontSize = 15.sp)
+                                        Text(if (inList) "✓" else "+", color = if (inList) C.Primary else C.TextSecondary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Divider(color = C.SurfaceVariant, thickness = 0.5.dp)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showPlaylistSheet = false }) {
+                            Text("Xong", color = C.Primary, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    containerColor = C.Surface
+                )
+            }
+        } // end DetailState.Success
+    } // end when
+} // end DetailScreen
 
 @Composable
 private fun Badge3(text: String, color: Color) {
@@ -459,3 +660,4 @@ private fun Badge3(text: String, color: Color) {
 }
 
 private val C.Badge get() = Color(0xFF2196F3)
+

@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 47
-        versionName = "1.14.0.1"
+        versionCode = 50
+        versionName = "1.17.0"
     }
 
     signingConfigs {
@@ -131,6 +131,10 @@ dependencies {
 
     // ═══ WorkManager (#34 — Episode notifications) ═══
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+
+    // ═══ Glance (N-3 — Continue Watching widget) ═══
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
 
     // ═══ Debug ═══
     debugImplementation("androidx.compose.ui:ui-tooling")

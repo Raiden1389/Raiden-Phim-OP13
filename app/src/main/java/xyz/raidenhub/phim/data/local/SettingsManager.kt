@@ -20,7 +20,15 @@ object SettingsManager {
     private val _autoPlayNext = MutableStateFlow(true)
     val autoPlayNext = _autoPlayNext.asStateFlow()
 
-    // Active filter count for badge
+    // ═══ SE-1: Default playback quality ═══
+    private val _defaultQuality = MutableStateFlow("auto") // auto / 360p / 720p / 1080p
+    val defaultQuality = _defaultQuality.asStateFlow()
+    val ALL_QUALITIES = listOf("auto" to "🔄 Tự động", "1080p" to "🔵 1080p HD", "720p" to "🟢 720p", "360p" to "🟡 360p")
+
+    // ═══ N-1: New episode notifications ═══
+    private val _notifyNewEpisode = MutableStateFlow(false)
+    val notifyNewEpisode = _notifyNewEpisode.asStateFlow()
+
     val activeFilterCount: Int
         get() = _selectedCountries.value.size + _selectedGenres.value.size
 
@@ -66,6 +74,8 @@ object SettingsManager {
         _selectedCountries.value = prefs.getStringSet("countries", null) ?: emptySet()
         _selectedGenres.value = prefs.getStringSet("genres", null) ?: emptySet()
         _autoPlayNext.value = prefs.getBoolean("autoPlayNext", true)
+        _defaultQuality.value = prefs.getString("defaultQuality", "auto") ?: "auto"
+        _notifyNewEpisode.value = prefs.getBoolean("notifyNewEpisode", false)
     }
 
     fun toggleCountry(slug: String) {
@@ -87,6 +97,16 @@ object SettingsManager {
         prefs.edit().putBoolean("autoPlayNext", enabled).apply()
     }
 
+    fun setDefaultQuality(quality: String) {
+        _defaultQuality.value = quality
+        prefs.edit().putString("defaultQuality", quality).apply()
+    }
+
+    fun setNotifyNewEpisode(enabled: Boolean) {
+        _notifyNewEpisode.value = enabled
+        prefs.edit().putBoolean("notifyNewEpisode", enabled).apply()
+    }
+
     fun clearCountries() {
         _selectedCountries.value = emptySet()
         prefs.edit().remove("countries").apply()
@@ -95,5 +115,51 @@ object SettingsManager {
     fun clearGenres() {
         _selectedGenres.value = emptySet()
         prefs.edit().remove("genres").apply()
+    }
+
+    // ═══ SE-6: Export / Import backup ═══
+    fun exportBackup(context: android.content.Context): String {
+        val favPrefs = context.getSharedPreferences("favorites", android.content.Context.MODE_PRIVATE)
+        val histPrefs = context.getSharedPreferences("watch_history", android.content.Context.MODE_PRIVATE)
+        val watchlistPrefs = context.getSharedPreferences("watchlist", android.content.Context.MODE_PRIVATE)
+        val playlistPrefs = context.getSharedPreferences("playlists", android.content.Context.MODE_PRIVATE)
+        return org.json.JSONObject().apply {
+            put("version", 1)
+            put("exportedAt", System.currentTimeMillis())
+            put("favorites", favPrefs.getString("favorites", "[]"))
+            put("watchHistory", histPrefs.getString("watch_history_v2", "{}"))
+            put("continueList", histPrefs.getString("continue_list_v2", "[]"))
+            put("watchlist", watchlistPrefs.getString("watchlist_v1", "[]"))
+            put("playlists", playlistPrefs.getString("playlists_v1", "[]"))
+        }.toString()
+    }
+
+    fun importBackup(context: android.content.Context, json: String) {
+        val obj = org.json.JSONObject(json)
+        val favPrefs = context.getSharedPreferences("favorites", android.content.Context.MODE_PRIVATE)
+        val histPrefs = context.getSharedPreferences("watch_history", android.content.Context.MODE_PRIVATE)
+        val watchlistPrefs = context.getSharedPreferences("watchlist", android.content.Context.MODE_PRIVATE)
+        val playlistPrefs = context.getSharedPreferences("playlists", android.content.Context.MODE_PRIVATE)
+
+        obj.optString("favorites").takeIf { it.isNotBlank() }?.let {
+            favPrefs.edit().putString("favorites", it).apply()
+        }
+        obj.optString("watchHistory").takeIf { it.isNotBlank() }?.let {
+            histPrefs.edit().putString("watch_history_v2", it).apply()
+        }
+        obj.optString("continueList").takeIf { it.isNotBlank() }?.let {
+            histPrefs.edit().putString("continue_list_v2", it).apply()
+        }
+        obj.optString("watchlist").takeIf { it.isNotBlank() }?.let {
+            watchlistPrefs.edit().putString("watchlist_v1", it).apply()
+        }
+        obj.optString("playlists").takeIf { it.isNotBlank() }?.let {
+            playlistPrefs.edit().putString("playlists_v1", it).apply()
+        }
+        // Re-init managers in-memory
+        FavoriteManager.init(context)
+        WatchHistoryManager.init(context)
+        WatchlistManager.init(context)
+        PlaylistManager.init(context)
     }
 }

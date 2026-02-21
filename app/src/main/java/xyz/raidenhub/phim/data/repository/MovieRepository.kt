@@ -79,7 +79,14 @@ object MovieRepository {
             val korD  = async { api.getKorean(1).data?.items.orEmpty().filterTrailer().sortNewest() }
             val tvD   = async {
                 try {
-                    kkApi.getTvShows(1).data?.items.orEmpty().tagSource("kkphim").filterTrailer().sortNewest()
+                    // KKPhim chỉ có 10 item/trang → fetch 2 trang để Home row có ~20 item
+                    val p1 = async { kkApi.getTvShows(1).data?.items.orEmpty() }
+                    val p2 = async { kkApi.getTvShows(2).data?.items.orEmpty() }
+                    (p1.await() + p2.await())
+                        .distinctBy { it.slug }
+                        .tagSource("kkphim")
+                        .filterTrailer()
+                        .sortNewest()
                 } catch (_: Exception) { emptyList() }
             }
             HomeData(newD.await(), serD.await(), movD.await(), aniD.await(), korD.await(), tvD.await())

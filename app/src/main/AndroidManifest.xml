@@ -33,6 +33,17 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
             android:screenOrientation="fullSensor"
             android:exported="false" />
+        <!-- N-3 — Continue Watching Widget -->
+        <receiver
+            android:name=".widget.ContinueWatchingWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/continue_widget_info" />
+        </receiver>
 
     </application>
 </manifest>

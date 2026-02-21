@@ -12,14 +12,13 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +50,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.local.FavoriteManager
+import xyz.raidenhub.phim.data.local.HeroFilterManager
+import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.repository.MovieRepository
@@ -83,6 +85,7 @@ sealed class HomeState {
 @Composable
 fun HomeScreen(
     onMovieClick: (String) -> Unit,
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long) -> Unit = { _, _, _, _ -> },
     onCategoryClick: (String, String) -> Unit,
     vm: HomeViewModel = viewModel()
 ) {
@@ -90,6 +93,7 @@ fun HomeScreen(
     val favorites by FavoriteManager.favorites.collectAsState()
     val continueList by WatchHistoryManager.continueList.collectAsState()
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
 
     when (val s = state) {
@@ -112,6 +116,8 @@ fun HomeScreen(
             val settingsCountries by SettingsManager.selectedCountries.collectAsState()
             val settingsGenres by SettingsManager.selectedGenres.collectAsState()
             val filterCount = settingsCountries.size + settingsGenres.size
+            // H-6: section order state (collected in composable scope, usable in LazyListScope)
+            val sectionOrder by SectionOrderManager.order.collectAsState()
 
             // Filter helpers using Settings
             fun List<Movie>.applySettingsFilter(): List<Movie> {
@@ -135,6 +141,7 @@ fun HomeScreen(
                     else -> "🌙 Chào buổi tối!"
                 }
             }
+
 
 
 
@@ -167,94 +174,212 @@ fun HomeScreen(
                         }
                     }
 
-                    // Hero Carousel
+                    // Hero Carousel — H-1: filter out hidden slugs
                     item {
+                        val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState()
+                        val heroMovies = remember(d.newMovies, hiddenSlugs) {
+                            d.newMovies.filter { it.slug !in hiddenSlugs }.take(5)
+                        }
                         HeroCarousel(
-                            movies = d.newMovies.take(5),
-                            onMovieClick = onMovieClick
+                            movies = heroMovies,
+                            onMovieClick = onMovieClick,
+                            onHideMovie = { slug ->
+                                HeroFilterManager.hide(slug)
+                                Toast.makeText(context, "🚫 Đã ẩn phim này", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
 
-                // ▶️ Continue Watching row
+                // ▶️ Continue Watching row — Cinematic redesign
                 if (continueList.isNotEmpty()) {
                     item {
-                        Column(modifier = Modifier.padding(top = 8.dp)) {
-                            Text(
-                                "▶️ Xem tiếp",
-                                color = C.TextPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp)
-                            )
+                        Column(modifier = Modifier.padding(top = 16.dp)) {
+                            // Header row
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(4.dp, 20.dp)
+                                            .background(C.Primary, RoundedCornerShape(2.dp))
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        "Xem tiếp",
+                                        color = C.TextPrimary,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    "${continueList.size} phim",
+                                    color = C.TextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+
                             LazyRow(
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 items(continueList, key = { "${it.slug}_${it.source}" }) { item ->
-                                    Box(modifier = Modifier.width(130.dp)) {
+                                    val pct = (item.progress * 100).toInt().coerceIn(0, 100)
+                                    val timeAgo = remember(item.lastWatched) {
+                                        val diffMs = System.currentTimeMillis() - item.lastWatched
+                                        val mins = diffMs / 60_000
+                                        val hours = mins / 60
+                                        val days = hours / 24
+                                        when {
+                                            mins < 1 -> "Vừa xong"
+                                            mins < 60 -> "${mins}ph trước"
+                                            hours < 24 -> "${hours}h trước"
+                                            days < 7 -> "${days} ngày trước"
+                                            else -> "${days / 7} tuần trước"
+                                        }
+                                    }
+
+                                    // Cinematic landscape card: 190×110dp
+                                    Box(
+                                        modifier = Modifier
+                                            .width(190.dp)
+                                            .height(110.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .combinedClickable(
+                                                onClick = {
+                                                    onContinue(item.slug, item.server, item.episode, item.positionMs)
+                                                },
+                                                onLongClick = {
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    WatchHistoryManager.removeContinue(item.slug)
+                                                    Toast.makeText(context, "🗑 Đã xoá", Toast.LENGTH_SHORT).show()
+                                                }
+                                            )
+                                    ) {
+                                        // Full-bleed thumbnail
+                                        AsyncImage(
+                                            model = ImageUtils.cardImage(item.thumbUrl, item.source),
+                                            contentDescription = item.name,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+
+                                        // Bottom gradient scrim
+                                        Box(
+                                            modifier = Modifier.fillMaxSize().background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color.Transparent,
+                                                        Color.Black.copy(0.3f),
+                                                        Color.Black.copy(0.85f)
+                                                    ),
+                                                    startY = 20f
+                                                )
+                                            )
+                                        )
+
+                                        // Episode badge — top left
+                                        Text(
+                                            item.epName.ifBlank { "Tập ${item.episode + 1}" },
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(8.dp)
+                                                .background(
+                                                    C.Primary.copy(alpha = 0.9f),
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+
+                                        // Time ago — top right
+                                        Text(
+                                            timeAgo,
+                                            color = Color.White.copy(0.85f),
+                                            fontSize = 9.sp,
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(8.dp)
+                                                .background(
+                                                    Color.Black.copy(0.55f),
+                                                    RoundedCornerShape(6.dp)
+                                                )
+                                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+
+                                        // Play button — center
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.Center)
+                                                .size(44.dp)
+                                                .background(
+                                                    Color.White.copy(0.18f),
+                                                    CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.PlayArrow, "Play",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
+
+                                        // Bottom info: title + progress
                                         Column(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .combinedClickable(
-                                                    onClick = {
-                                                        if (item.isEnglish) {
-                                                            onMovieClick("eng:${item.slug}")
-                                                        } else {
-                                                            onMovieClick(item.slug)
-                                                        }
-                                                    },
-                                                    onLongClick = {
-                                                        WatchHistoryManager.removeContinue(item.slug)
-                                                        Toast.makeText(context, "🗑 Đã xoá", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                )
-                                                .padding(4.dp)
+                                                .align(Alignment.BottomStart)
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 8.dp)
                                         ) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    item.name,
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    "$pct%",
+                                                    color = C.Primary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Spacer(Modifier.height(4.dp))
+                                            // Progress bar
                                             Box(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .aspectRatio(2f / 3f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(C.Surface)
+                                                    .height(3.dp)
+                                                    .clip(RoundedCornerShape(2.dp))
+                                                    .background(Color.White.copy(0.25f))
                                             ) {
-                                                AsyncImage(
-                                                    model = ImageUtils.cardImage(item.thumbUrl, item.source),
-                                                    contentDescription = item.name,
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize()
-                                                )
-                                                // Episode label
-                                                Text(
-                                                    item.epName,
-                                                    color = Color.White,
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
+                                                Box(
                                                     modifier = Modifier
-                                                        .align(Alignment.TopStart)
-                                                        .padding(6.dp)
-                                                        .background(Color.Black.copy(0.7f), RoundedCornerShape(4.dp))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                )
-                                                // Progress bar at bottom
-                                                LinearProgressIndicator(
-                                                    progress = { item.progress },
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(3.dp)
-                                                        .align(Alignment.BottomCenter),
-                                                    color = C.Primary,
-                                                    trackColor = Color.Black.copy(0.5f)
+                                                        .fillMaxWidth(item.progress.coerceIn(0f, 1f))
+                                                        .fillMaxHeight()
+                                                        .background(
+                                                            Brush.horizontalGradient(
+                                                                listOf(C.Primary, C.Primary.copy(0.7f))
+                                                            )
+                                                        )
                                                 )
                                             }
-                                            Text(
-                                                item.name,
-                                                color = C.TextPrimary,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(top = 6.dp)
-                                            )
                                         }
                                     }
                                 }
@@ -285,13 +410,7 @@ fun HomeScreen(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(8.dp))
                                                 .combinedClickable(
-                                                    onClick = {
-                                                        if (fav.source == "english") {
-                                                            onMovieClick("eng:${fav.slug}")
-                                                        } else {
-                                                            onMovieClick(fav.slug)
-                                                        }
-                                                    },
+                                                    onClick = { onMovieClick(fav.slug) },
                                                     onLongClick = {
                                                         FavoriteManager.toggle(fav.slug, fav.name)
                                                         Toast.makeText(context, "💔 Đã xoá ${fav.name}", Toast.LENGTH_SHORT).show()
@@ -344,31 +463,34 @@ fun HomeScreen(
                     }
                 }
 
-                // Category rows (filtered by Settings)
-                val newFiltered = d.newMovies.applySettingsFilter()
+                // Category rows — H-6: render theo SectionOrderManager order
+                val newFiltered    = d.newMovies.applySettingsFilter()
                 val koreanFiltered = d.korean.applySettingsFilter()
                 val seriesFiltered = d.series.applySettingsFilter()
                 val singleFiltered = d.singleMovies.applySettingsFilter()
-                val animeFiltered = d.anime.applySettingsFilter()
-                val tvFiltered = d.tvShows.applySettingsFilter()
+                val animeFiltered  = d.anime.applySettingsFilter()
+                val tvFiltered     = d.tvShows.applySettingsFilter()
 
-                if (newFiltered.isNotEmpty()) {
-                    item { MovieRowSection("🔥 Phim Mới", newFiltered, onMovieClick) { onCategoryClick("phim-moi-cap-nhat", "Phim Mới") } }
-                }
-                if (koreanFiltered.isNotEmpty()) {
-                    item { MovieRowSection("🇰🇷 K-Drama", koreanFiltered, onMovieClick) { onCategoryClick("han-quoc", "K-Drama") } }
-                }
-                if (seriesFiltered.isNotEmpty()) {
-                    item { MovieRowSection("📺 Phim Bộ", seriesFiltered, onMovieClick) { onCategoryClick("phim-bo", "Phim Bộ") } }
-                }
-                if (singleFiltered.isNotEmpty()) {
-                    item { MovieRowSection("🎬 Phim Lẻ", singleFiltered, onMovieClick) { onCategoryClick("phim-le", "Phim Lẻ") } }
-                }
-                if (animeFiltered.isNotEmpty()) {
-                    item { MovieRowSection("🎌 Hoạt Hình", animeFiltered, onMovieClick) { onCategoryClick("hoat-hinh", "Hoạt Hình") } }
-                }
-                if (tvFiltered.isNotEmpty()) {
-                    item { MovieRowSection("📺 TV Shows", tvFiltered, onMovieClick) { onCategoryClick("tv-shows", "TV Shows") } }
+                // Map sectionId → (label, list, categorySlug, categoryName)
+                val sectionMap = mapOf(
+                    "new"     to Triple("🔥 Phim Mới",   newFiltered,    "phim-moi-cap-nhat" to "Phim Mới"),
+                    "korean"  to Triple("🇰🇷 K-Drama",   koreanFiltered, "han-quoc" to "K-Drama"),
+                    "series"  to Triple("📺 Phim Bộ",    seriesFiltered, "phim-bo" to "Phim Bộ"),
+                    "single"  to Triple("🎬 Phim Lẻ",    singleFiltered, "phim-le" to "Phim Lẻ"),
+                    "anime"   to Triple("🎌 Hoạt Hình",  animeFiltered,  "hoat-hinh" to "Hoạt Hình"),
+                    "tvshows" to Triple("📺 TV Shows",   tvFiltered,     "tv-shows" to "TV Shows"),
+                )
+
+                sectionOrder.forEach { sectionId ->
+                    val triple = sectionMap[sectionId] ?: return@forEach
+                    val (label, movies, catPair) = triple
+                    if (movies.isNotEmpty()) {
+                        item(key = label) {
+                            MovieRowSection(label, movies, onMovieClick, onContinue, haptic) {
+                                onCategoryClick(catPair.first, catPair.second)
+                            }
+                        }
+                    }
                 }
                 }
             }
@@ -378,7 +500,11 @@ fun HomeScreen(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeroCarousel(movies: List<Movie>, onMovieClick: (String) -> Unit) {
+private fun HeroCarousel(
+    movies: List<Movie>,
+    onMovieClick: (String) -> Unit,
+    onHideMovie: ((String) -> Unit)? = null  // H-1: callback ẩn phim khỏi carousel
+) {
     if (movies.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { movies.size })
 
@@ -431,11 +557,19 @@ private fun HeroCarousel(movies: List<Movie>, onMovieClick: (String) -> Unit) {
                 }
             }
 
+            // H-1: Dropdown state per slide
+            var showMenu by remember { mutableStateOf(false) }
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clipToBounds()
-                    .clickable { onMovieClick(movie.slug) }
+                    .combinedClickable(
+                        onClick = { onMovieClick(movie.slug) },
+                        onLongClick = {
+                            if (onHideMovie != null) showMenu = true
+                        }
+                    )
             ) {
                 AsyncImage(
                     model = ImageUtils.heroImage(movie.posterUrl.ifBlank { movie.thumbUrl }, movie.source),
@@ -490,7 +624,29 @@ private fun HeroCarousel(movies: List<Movie>, onMovieClick: (String) -> Unit) {
                         Text("Xem Ngay", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+
+                // H-1: Context menu khi long press
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("🚫 Bỏ qua phim này") },
+                        onClick = {
+                            showMenu = false
+                            onHideMovie?.invoke(movie.slug)
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("🔍 Xem chi tiết") },
+                        onClick = {
+                            showMenu = false
+                            onMovieClick(movie.slug)
+                        }
+                    )
+                }
             }
+
         }
 
         // Page indicator dots
@@ -514,11 +670,14 @@ private fun HeroCarousel(movies: List<Movie>, onMovieClick: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MovieRowSection(
     title: String,
     movies: List<Movie>,
     onMovieClick: (String) -> Unit,
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long) -> Unit,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
     onSeeMore: () -> Unit
 ) {
     if (movies.isEmpty()) return
@@ -539,11 +698,18 @@ private fun MovieRowSection(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items(movies.take(12), key = { it.slug }) { movie ->
-                MovieCard(
-                    movie = movie,
-                    onClick = { onMovieClick(movie.slug) },
-                    modifier = Modifier.width(130.dp)
-                )
+                // H-7: Long press → Quick Play từ đầu (positionMs = 0)
+                Box(modifier = Modifier.width(130.dp)) {
+                    MovieCard(
+                        movie = movie,
+                        onClick = { onMovieClick(movie.slug) },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onContinue(movie.slug, 0, 0, 0L)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         }
     }

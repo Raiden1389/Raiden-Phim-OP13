@@ -82,6 +82,31 @@ object SearchHistoryManager {
     }
 }
 
+// ═══ S-3: Smart Keyword Normalization ═══
+private val KEYWORD_MAP = mapOf(
+    // Country variants
+    "han quoc" to "Hàn Quốc", "han" to "Hàn Quốc",
+    "trung quoc" to "Trung Quốc", "trung" to "Trung Quốc",
+    "my" to "Mỹ", "nhat" to "Nhật Bản", "nhat ban" to "Nhật Bản",
+    "thai" to "Thái Lan", "thai lan" to "Thái Lan",
+    "anh" to "Anh", "phap" to "Pháp", "duc" to "Đức",
+    // Genre shorthand
+    "kinh di" to "Kinh dị",
+    "hanh dong" to "Hành động",
+    "tinh cam" to "Tình cảm", "lam ly" to "Lãng mạn",
+    "vien tuong" to "Viễn tưởng", "sci fi" to "Viễn tưởng",
+    "hoat hinh" to "Hoạt hình",
+    "co trang" to "Cổ trang", "vo thuat" to "Võ thuật",
+    "hai huoc" to "Hài hước",
+    "gia dinh" to "Gia đình", "tam ly" to "Tâm lý",
+    "phieu luu" to "Phiêu lưu", "chien tranh" to "Chiến tranh",
+)
+
+fun normalizeKeyword(raw: String): String {
+    val lower = raw.trim().lowercase()
+    return KEYWORD_MAP[lower] ?: raw.trim()
+}
+
 class SearchViewModel : ViewModel() {
     private val _results = MutableStateFlow<List<Movie>>(emptyList())
     val results = _results.asStateFlow()
@@ -131,6 +156,22 @@ private val TRENDING_KEYWORDS = listOf(
     "Cổ trang", "Anime", "Gia đình", "Lãng mạn"
 )
 
+// S-2: Genre Quick Search chips
+private val GENRE_CHIPS = listOf(
+    "hanh-dong" to "🥊 Hành động", "tinh-cam" to "💖 Tình cảm",
+    "kinh-di" to "👻 Kinh dị", "hoat-hinh" to "🎠 Hoạt hình",
+    "hai-huoc" to "😂 Hài", "vien-tuong" to "🚀 Viễn tưởng",
+    "co-trang" to "🏯 Cổ trang", "vo-thuat" to "🥋 Võ thuật",
+    "phieu-luu" to "🏔️ Phiêu lưu", "gia-dinh" to "🏠 Gia đình",
+)
+
+// S-4: Sort options
+enum class SearchSort(val label: String) {
+    NEWEST("🕒 Mới nhất"),
+    OLDEST("📋 Cũ nhất"),
+    AZ("🔤 Tên A-Z")
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
@@ -144,6 +185,37 @@ fun SearchScreen(
     val context = LocalContext.current
     val history by SearchHistoryManager.history.collectAsState()
 
+    // S-1: Filter state
+    var filterYear by remember { mutableStateOf<Int?>(null) }
+    var filterType by remember { mutableStateOf<String?>(null) } // "series"|"single"
+    // S-4: Sort
+    var sortMode by remember { mutableStateOf(SearchSort.NEWEST) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    // Apply filter + sort on results
+    val displayResults = remember(results, filterYear, filterType, sortMode) {
+        var list = results
+        filterYear?.let { y -> list = list.filter { it.year == y } }
+        filterType?.let { t ->
+            list = when (t) {
+                "series" -> list.filter {
+                    val ep = it.episodeCurrent.lowercase()
+                    !ep.contains("full") && !ep.contains("full hd")
+                }
+                "single" -> list.filter {
+                    val ep = it.episodeCurrent.lowercase()
+                    ep.contains("full") || ep.isBlank()
+                }
+                else -> list
+            }
+        }
+        when (sortMode) {
+            SearchSort.NEWEST -> list.sortedByDescending { it.year }
+            SearchSort.OLDEST -> list.sortedBy { it.year }
+            SearchSort.AZ -> list.sortedBy { it.name }
+        }
+    }
+
     // Init history
     LaunchedEffect(Unit) { SearchHistoryManager.init(context) }
 
@@ -154,8 +226,10 @@ fun SearchScreen(
         if (result.resultCode == Activity.RESULT_OK) {
             val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             if (!spoken.isNullOrBlank()) {
-                query = spoken
-                vm.search(spoken)
+                // S-3: normalize before search
+                val normalized = normalizeKeyword(spoken)
+                query = normalized
+                vm.search(normalized)
             }
         }
     }
@@ -164,7 +238,11 @@ fun SearchScreen(
         // Search bar with voice + clear buttons
         OutlinedTextField(
             value = query,
-            onValueChange = { query = it; vm.search(it) },
+            onValueChange = { raw ->
+                // S-3: normalize as user types (only for exact matches, else pass through)
+                query = raw
+                vm.search(raw)
+            },
             placeholder = { Text("Tìm phim...", color = C.TextMuted) },
             leadingIcon = { Icon(Icons.Default.Search, "Search", tint = C.TextSecondary) },
             trailingIcon = {
@@ -214,7 +292,11 @@ fun SearchScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { query = suggestion; vm.search(suggestion) }
+                            .clickable {
+                                val normalized = normalizeKeyword(suggestion)
+                                query = normalized
+                                vm.search(normalized)
+                            }
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -227,6 +309,34 @@ fun SearchScreen(
         }
 
         if (query.length < 2) {
+            // S-2: Genre quick search row
+            Text("🎥 Thể loại", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                items(GENRE_CHIPS) { (_, label) ->
+                    Text(
+                        label,
+                        color = C.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(C.Primary.copy(0.18f))
+                            .clickable {
+                                // Extract display name (after emoji)
+                                val displayName = label.trim().substring(label.trim().indexOfFirst { it == ' ' } + 1)
+                                query = displayName
+                                vm.search(displayName)
+                            }
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
+            }
+
             // #9 — Search history
             if (history.isNotEmpty()) {
                 Row(
@@ -290,11 +400,11 @@ fun SearchScreen(
                     )
                 }
             }
-        } else if (loading) {
+        } else if (loading && results.isEmpty()) {
             Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(32.dp))
             }
-        } else if (results.isEmpty()) {
+        } else if (displayResults.isEmpty() && !loading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("🔍 Không tìm thấy phim nào", color = C.TextSecondary, fontSize = 16.sp)
             }
@@ -306,20 +416,115 @@ fun SearchScreen(
                 }
             }
 
-            // #12 — Result count
-            Text(
-                "📋 ${results.size} kết quả cho \"$query\"",
-                color = C.TextSecondary,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            // S-1: Filter chips + S-4 Sort
+            val availableYears = remember(results) {
+                results.map { it.year }.filter { it > 2000 }.distinct().sortedDescending().take(6)
+            }
+
+            Column {
+                // Count + Sort row
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // #12 — Result count
+                    Text(
+                        "📋 ${displayResults.size} kết quả cho \"$query\"",
+                        color = C.TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    // S-4: Sort dropdown
+                    Box {
+                        TextButton(onClick = { showSortMenu = true }) {
+                            Text(sortMode.label, color = C.Primary, fontSize = 12.sp)
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false },
+                            containerColor = C.Surface
+                        ) {
+                            SearchSort.entries.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode.label, color = C.TextPrimary, fontSize = 13.sp) },
+                                    onClick = { sortMode = mode; showSortMenu = false }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // S-1: Filter chips row (Type + Year)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    item {
+                        val selected = filterType == null && filterYear == null
+                        FilterChip(
+                            selected = selected,
+                            onClick = { filterType = null; filterYear = null },
+                            label = { Text("Tất cả", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = C.Primary.copy(0.25f),
+                                selectedLabelColor = C.Primary
+                            )
+                        )
+                    }
+                    item {
+                        val selected = filterType == "series"
+                        FilterChip(
+                            selected = selected,
+                            onClick = { filterType = if (selected) null else "series" },
+                            label = { Text("📺 Phim bộ", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = C.Primary.copy(0.25f),
+                                selectedLabelColor = C.Primary
+                            )
+                        )
+                    }
+                    item {
+                        val selected = filterType == "single"
+                        FilterChip(
+                            selected = selected,
+                            onClick = { filterType = if (selected) null else "single" },
+                            label = { Text("🎬 Phim lẻ", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = C.Primary.copy(0.25f),
+                                selectedLabelColor = C.Primary
+                            )
+                        )
+                    }
+                    // Year chips
+                    items(availableYears) { year ->
+                        val selected = filterYear == year
+                        FilterChip(
+                            selected = selected,
+                            onClick = { filterYear = if (selected) null else year },
+                            label = { Text("$year", fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = C.Primary.copy(0.25f),
+                                selectedLabelColor = C.Primary
+                            )
+                        )
+                    }
+                }
+            }
+
+            if (loading) {
+                LinearProgressIndicator(
+                    color = C.Primary,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp)
+                )
+            }
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 contentPadding = PaddingValues(8.dp, 4.dp, 8.dp, 80.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(results, key = { it.slug }) { movie ->
+                items(displayResults, key = { it.slug }) { movie ->
                     MovieCard(movie = movie, onClick = { onMovieClick(movie.slug) })
                 }
             }

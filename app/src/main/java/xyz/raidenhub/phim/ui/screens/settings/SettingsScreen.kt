@@ -21,16 +21,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import xyz.raidenhub.phim.BuildConfig
 import xyz.raidenhub.phim.data.local.FavoriteManager
+import xyz.raidenhub.phim.data.local.HeroFilterManager
+import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.ui.theme.C
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import xyz.raidenhub.phim.notification.EpisodeCheckWorker
 
 @Composable
 fun SettingsScreen() {
     val selectedCountries by SettingsManager.selectedCountries.collectAsState()
     val selectedGenres by SettingsManager.selectedGenres.collectAsState()
     val autoPlayNext by SettingsManager.autoPlayNext.collectAsState()
+    val defaultQuality by SettingsManager.defaultQuality.collectAsState()
+    val notifyNewEpisode by SettingsManager.notifyNewEpisode.collectAsState()
     val context = LocalContext.current
+    var showQualitySheet by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -83,6 +98,172 @@ fun SettingsScreen() {
                     )
                 )
             }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // SE-1: Default playback quality
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .clickable { showQualitySheet = true }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("📺 Chất lượng mặc định", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        SettingsManager.ALL_QUALITIES.find { it.first == defaultQuality }?.second ?: "🔄 Tự động",
+                        color = C.TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+                Text("›", color = C.TextSecondary, fontSize = 20.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Divider
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // ═══ N-1: Notifications ═══
+        item {
+            Text("🔔 Thông báo", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .clickable {
+                        val newVal = !notifyNewEpisode
+                        SettingsManager.setNotifyNewEpisode(newVal)
+                        if (newVal) EpisodeCheckWorker.schedule(context)
+                        else EpisodeCheckWorker.cancel(context)
+                    }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("🎞️ Tập mới yêu thích", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("Thông báo khi phim yêu thích ra tập mới (kiểm tra mỗi 6h)", color = C.TextSecondary, fontSize = 12.sp)
+                }
+                Switch(
+                    checked = notifyNewEpisode,
+                    onCheckedChange = { newVal ->
+                        SettingsManager.setNotifyNewEpisode(newVal)
+                        if (newVal) EpisodeCheckWorker.schedule(context)
+                        else EpisodeCheckWorker.cancel(context)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = C.Primary,
+                        uncheckedThumbColor = C.TextSecondary,
+                        uncheckedTrackColor = C.Surface
+                    )
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Divider
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // ═══ H-6: Sắp xếp các hàng phim ═══
+        item {
+            Text("🗂️ Sắp xếp trang chủ", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text("Kéo các nút ↑↓ để thay đổi thứ tự hiển thị", color = C.TextSecondary, fontSize = 12.sp)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // H-6: Render each section with move up/down buttons
+        item {
+            val sectionOrder by SectionOrderManager.order.collectAsState()
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                sectionOrder.forEachIndexed { idx, id ->
+                    val info = SectionOrderManager.getSectionInfo(id)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(C.Surface)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "${info?.emoji ?: "▪"} ${info?.label ?: id}",
+                            color = C.TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row {
+                            IconButton(
+                                onClick = { SectionOrderManager.moveUp(id) },
+                                enabled = idx > 0,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("↑", color = if (idx > 0) C.Primary else C.TextMuted, fontSize = 18.sp)
+                            }
+                            IconButton(
+                                onClick = { SectionOrderManager.moveDown(id) },
+                                enabled = idx < sectionOrder.size - 1,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text("↓", color = if (idx < sectionOrder.size - 1) C.Primary else C.TextMuted, fontSize = 18.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(6.dp))
+                TextButton(onClick = { SectionOrderManager.reset() }) {
+                    Text("↺ Khôi phục mặc định", color = C.TextSecondary, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // ═══ H-1: Hero Carousel Filter ═══
+        item {
+            val hiddenCount = HeroFilterManager.hiddenCount
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("🚫 Phim bị ẩn khỏi Carousel", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (hiddenCount == 0) "Chưa ẩn phim nào" else "Đang ẩn $hiddenCount phim",
+                        color = C.TextSecondary, fontSize = 13.sp
+                    )
+                }
+                if (hiddenCount > 0) {
+                    TextButton(onClick = { HeroFilterManager.clearAll() }) {
+                        Text("Hiện lại tất cả", color = C.Primary, fontSize = 13.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Long press vào slide trên trang chủ → \"Bỏ qua phim này\" để ẩn phim khỏi Hero Carousel",
+                color = C.TextMuted, fontSize = 12.sp
+            )
             Spacer(Modifier.height(24.dp))
         }
 
@@ -93,6 +274,7 @@ fun SettingsScreen() {
         }
 
         // ═══ Country Filter ═══
+
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -290,7 +472,88 @@ fun SettingsScreen() {
             Spacer(Modifier.height(24.dp))
         }
 
-        // Info + Version
+        // SE-6: Export / Import backup
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(16.dp))
+            Text("📦 Sao lưu & Khôi phục", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+        }
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .clickable {
+                        try {
+                            val json = SettingsManager.exportBackup(context)
+                            val fname = "raidenphim_backup_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}.json"
+                            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                            dir.mkdirs()
+                            File(dir, fname).writeText(json)
+                            Toast.makeText(context, "✅ Đã xuất: Downloads/$fname", Toast.LENGTH_LONG).show()
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "❌ Lỗi xuất: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("📤 Xuất dữ liệu", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("Lưu yêu thích + lịch sử ra Downloads", color = C.TextSecondary, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        item {
+            var showImportConfirm by remember { mutableStateOf(false) }
+            var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+            val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) { pendingImportUri = uri; showImportConfirm = true }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .clickable { importLauncher.launch(arrayOf("application/json")) }
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("📥 Nhập dữ liệu", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("Khôi phục từ file backup .json", color = C.TextSecondary, fontSize = 12.sp)
+                }
+            }
+            if (showImportConfirm && pendingImportUri != null) {
+                AlertDialog(
+                    onDismissRequest = { showImportConfirm = false },
+                    title = { Text("Xác nhận nhập", color = C.TextPrimary) },
+                    text = { Text("Dữ liệu hiện tại sẽ bị ghi đè. Tiếp tục?", color = C.TextSecondary) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            try {
+                                val json = context.contentResolver.openInputStream(pendingImportUri!!)?.bufferedReader()?.readText() ?: ""
+                                SettingsManager.importBackup(context, json)
+                                showImportConfirm = false
+                                Toast.makeText(context, "✅ Đã nhập dữ liệu", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "❌ Lỗi: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Text("Nhập", color = C.Primary) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showImportConfirm = false }) { Text("Huỷ", color = C.TextSecondary) }
+                    },
+                    containerColor = C.Surface
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+        }
         item {
             HorizontalDivider(color = C.Surface, thickness = 1.dp)
             Spacer(Modifier.height(16.dp))
@@ -309,6 +572,37 @@ fun SettingsScreen() {
             )
             Spacer(Modifier.height(80.dp))
         }
+    }
+
+    // SE-1: Quality selector bottom sheet via AlertDialog
+    if (showQualitySheet) {
+        AlertDialog(
+            onDismissRequest = { showQualitySheet = false },
+            title = { Text("📺 Chọn chất lượng mặc định", color = C.TextPrimary) },
+            text = {
+                Column {
+                    SettingsManager.ALL_QUALITIES.forEach { (slug, label) ->
+                        val isSelected = slug == defaultQuality
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) C.Primary.copy(0.15f) else C.Surface)
+                                .clickable { SettingsManager.setDefaultQuality(slug); showQualitySheet = false }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(label, color = if (isSelected) C.Primary else C.TextPrimary, fontSize = 15.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                            if (isSelected) Icon(Icons.Default.Check, null, tint = C.Primary, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showQualitySheet = false }) { Text("Đóng", color = C.Primary) } },
+            containerColor = C.Surface
+        )
     }
 }
 

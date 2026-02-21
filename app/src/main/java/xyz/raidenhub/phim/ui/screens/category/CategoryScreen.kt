@@ -42,11 +42,13 @@ class CategoryViewModel : ViewModel() {
     private var totalPages = 1
     private var currentSlug = ""
     private var currentCountry = "" // country filter
+    private var currentYear = 0     // year filter (0 = all)
 
-    fun load(slug: String, country: String = "") {
-        if (slug == currentSlug && country == currentCountry && _movies.value.isNotEmpty()) return
+    fun load(slug: String, country: String = "", year: Int = 0) {
+        if (slug == currentSlug && country == currentCountry && year == currentYear && _movies.value.isNotEmpty()) return
         currentSlug = slug
         currentCountry = country
+        currentYear = year
         currentPage = 1
         _movies.value = emptyList()
         fetchPage(slug, 1, replace = true)
@@ -90,6 +92,10 @@ class CategoryViewModel : ViewModel() {
                     newMovies = newMovies.filter { movie ->
                         movie.country.any { it.slug == currentCountry }
                     }
+                }
+                // C-1: Apply year filter if set
+                if (currentYear > 0) {
+                    newMovies = newMovies.filter { it.year == currentYear }
                 }
 
                 // Use totalPages directly from API — already computed server-side
@@ -144,8 +150,9 @@ fun CategoryScreen(
     vm: CategoryViewModel = viewModel()
 ) {
     var selectedCountry by remember { mutableStateOf("") }
+    var selectedYear by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(slug, selectedCountry) { vm.load(slug, selectedCountry) }
+    LaunchedEffect(slug, selectedCountry, selectedYear) { vm.load(slug, selectedCountry, selectedYear) }
     val movies by vm.movies.collectAsState()
     val loading by vm.loading.collectAsState()
     val loadingMore by vm.loadingMore.collectAsState()
@@ -203,6 +210,32 @@ fun CategoryScreen(
                         .background(if (isActive) C.Primary else C.Surface)
                         .clickable { selectedCountry = filter.slug }
                         .padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        // C-1: Year filter chips
+        val currentYear2 = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+        val yearOptions = listOf(0) + (currentYear2 downTo currentYear2 - 7).toList()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            yearOptions.forEach { year ->
+                val isActive = selectedYear == year
+                Text(
+                    text = if (year == 0) "Tất cả" else year.toString(),
+                    color = if (isActive) C.TextPrimary else C.TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isActive) C.Primary.copy(0.8f) else C.Surface)
+                        .clickable { selectedYear = year }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 )
             }
         }

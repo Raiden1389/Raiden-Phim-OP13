@@ -106,6 +106,7 @@ fun PlayerScreen(
     slug: String,
     server: Int,
     episode: Int,
+    startPositionMs: Long = 0L,
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
@@ -185,7 +186,8 @@ fun PlayerScreen(
         }
     }
 
-    // Play current episode
+    // Play current episode — seek to saved position only on initial episode load
+    var hasSeekOnce by remember { mutableStateOf(false) }
     LaunchedEffect(currentEp, episodes) {
         if (episodes.isNotEmpty()) {
             val ep = episodes.getOrNull(currentEp) ?: return@LaunchedEffect
@@ -193,6 +195,11 @@ fun PlayerScreen(
             if (url.isNotBlank()) {
                 player.setMediaItem(MediaItem.fromUri(url))
                 player.prepare()
+                // Seek to saved position only on first episode load
+                if (!hasSeekOnce && startPositionMs > 0L && currentEp == episode) {
+                    player.seekTo(startPositionMs)
+                    hasSeekOnce = true
+                }
             }
         }
     }
