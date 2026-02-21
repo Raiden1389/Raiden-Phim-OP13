@@ -70,19 +70,16 @@ private fun AnimeContent(
     data: AnimeRepository.AnimeHomeData,
     onAnimeClick: (Int, String) -> Unit
 ) {
-    var selectedGenre by remember { mutableStateOf<String?>(null) }
+    var selectedGenre by remember { mutableStateOf<Anime47Genre?>(null) }
     var genreResults by remember { mutableStateOf<List<Anime47Item>>(emptyList()) }
     var genreLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    // Fetch anime by genre via search API
+    // Fetch anime by genre slug — accurate filter, fallback to keyword search
     LaunchedEffect(selectedGenre) {
-        if (selectedGenre == null) {
-            genreResults = emptyList()
-            return@LaunchedEffect
-        }
+        val genre = selectedGenre ?: run { genreResults = emptyList(); return@LaunchedEffect }
         genreLoading = true
-        AnimeRepository.search(selectedGenre!!).onSuccess { results ->
+        AnimeRepository.getAnimeByGenre(genre.slug, genre.name).onSuccess { results ->
             genreResults = results
         }.onFailure {
             genreResults = emptyList()
@@ -118,16 +115,16 @@ private fun AnimeContent(
                 SectionHeader("🏷️ Thể Loại")
                 GenreChips(
                     genres = data.genres,
-                    selectedGenre = selectedGenre,
+                    selectedGenreSlug = selectedGenre?.slug,
                     onGenreClick = { genre ->
-                        selectedGenre = if (selectedGenre == genre.name) null else genre.name
+                        selectedGenre = if (selectedGenre?.slug == genre.slug) null else genre
                     }
                 )
                 Spacer(Modifier.height(12.dp))
             }
         }
 
-        // ═══ Genre Results (from search API) ═══
+        // ═══ Genre Results ═══
         if (selectedGenre != null) {
             if (genreLoading) {
                 item {
@@ -137,7 +134,7 @@ private fun AnimeContent(
                 }
             } else if (genreResults.isNotEmpty()) {
                 item {
-                    SectionHeader("📂 $selectedGenre (${genreResults.size} kết quả)")
+                    SectionHeader("📂 ${selectedGenre!!.name} (${genreResults.size} kết quả)")
                 }
                 items(genreResults.chunked(3)) { row ->
                     Row(
@@ -160,7 +157,7 @@ private fun AnimeContent(
                 item {
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Không tìm thấy anime thể loại \"$selectedGenre\"",
+                        "Không tìm thấy anime thể loại \"${selectedGenre?.name}\"",
                         color = C.TextSecondary,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -422,7 +419,7 @@ private fun FeaturedCard(anime: Anime47Item, onClick: (Int, String) -> Unit) {
 @Composable
 private fun GenreChips(
     genres: List<Anime47Genre>,
-    selectedGenre: String? = null,
+    selectedGenreSlug: String? = null,
     onGenreClick: (Anime47Genre) -> Unit = {}
 ) {
     Row(
@@ -432,8 +429,8 @@ private fun GenreChips(
             .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        genres.take(20).forEach { genre ->
-            val isSelected = selectedGenre == genre.name
+        genres.take(30).forEach { genre ->
+            val isSelected = selectedGenreSlug == genre.slug
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = if (isSelected) C.Accent else C.Surface,

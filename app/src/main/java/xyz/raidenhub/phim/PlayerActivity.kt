@@ -16,6 +16,15 @@ import xyz.raidenhub.phim.ui.theme.RaidenPhimTheme
 /**
  * Separate Activity cho Player — fullscreen hoàn toàn, không share window/insets với MainActivity.
  * Pattern giống Netflix/YouTube/NewPipe: Player luôn ở Activity riêng.
+ *
+ * Extras:
+ *  slug        — KKPhim/OPhim movie slug (source=kkphim)
+ *  server      — server index
+ *  episode     — episode index
+ *  positionMs  — resume position
+ *  source      — "kkphim" (default) | "anime47"
+ *  episodeIds  — IntArray (chỉ dùng khi source=anime47)
+ *  animeTitle  — String  (chỉ dùng khi source=anime47)
  */
 class PlayerActivity : ComponentActivity() {
 
@@ -50,19 +59,26 @@ class PlayerActivity : ComponentActivity() {
         controller.hide(WindowInsetsCompat.Type.systemBars())
 
         // Extract args from Intent
-        val slug = intent.getStringExtra("slug") ?: ""
-        val server = intent.getIntExtra("server", 0)
-        val episode = intent.getIntExtra("episode", 0)
-        val positionMs = intent.getLongExtra("positionMs", 0L)
+        val source      = intent.getStringExtra("source") ?: "kkphim"
+        val slug        = intent.getStringExtra("slug") ?: ""
+        val server      = intent.getIntExtra("server", 0)
+        val episode     = intent.getIntExtra("episode", 0)
+        val positionMs  = intent.getLongExtra("positionMs", 0L)
+        // Anime47 extras
+        val episodeIds  = intent.getIntArrayExtra("episodeIds") ?: intArrayOf()
+        val animeTitle  = intent.getStringExtra("animeTitle") ?: ""
 
         setContent {
             RaidenPhimTheme {
                 PlayerScreen(
-                    slug = slug,
-                    server = server,
-                    episode = episode,
+                    slug           = slug,
+                    server         = server,
+                    episode        = episode,
                     startPositionMs = positionMs,
-                    onBack = { finish() }
+                    source         = source,
+                    episodeIds     = episodeIds,
+                    animeTitle     = animeTitle,
+                    onBack         = { finish() }
                 )
             }
         }

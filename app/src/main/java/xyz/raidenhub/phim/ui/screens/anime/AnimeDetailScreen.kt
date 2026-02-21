@@ -36,7 +36,8 @@ fun AnimeDetailScreen(
     animeId: Int,
     slug: String,
     onBack: () -> Unit,
-    onPlay: (slug: String, server: Int, episode: Int) -> Unit
+    // Hướng B: truyền toàn bộ episodeIds + title để PlayerActivity fetch stream
+    onPlayAnime47: (episodeIds: IntArray, epIdx: Int, title: String) -> Unit
 ) {
     var detail by remember { mutableStateOf<Anime47Detail?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -60,7 +61,7 @@ fun AnimeDetailScreen(
                 Text("← Quay lại", color = C.Primary, modifier = Modifier.clickable(onClick = onBack))
             }
         }
-        detail != null -> AnimeDetailContent(detail!!, slug, onBack, onPlay)
+        detail != null -> AnimeDetailContent(detail!!, onBack, onPlayAnime47)
     }
 }
 
@@ -68,13 +69,13 @@ fun AnimeDetailScreen(
 @Composable
 private fun AnimeDetailContent(
     anime: Anime47Detail,
-    slug: String,
     onBack: () -> Unit,
-    onPlay: (slug: String, server: Int, episode: Int) -> Unit
+    onPlayAnime47: (episodeIds: IntArray, epIdx: Int, title: String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    // Parse episodes from latestEpisodes
     val episodes = anime.latestEpisodes
+    // Build IntArray of episode IDs theo thứ tự latestEpisodes
+    val episodeIds = remember(episodes) { episodes.map { it.id }.toIntArray() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(C.Background)
@@ -113,7 +114,7 @@ private fun AnimeDetailContent(
         if (episodes.isNotEmpty()) {
             item {
                 Button(
-                    onClick = { onPlay(slug, 0, 0) },
+                    onClick = { onPlayAnime47(episodeIds, 0, anime.title) },
                     colors = ButtonDefaults.buttonColors(containerColor = C.Primary),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).height(48.dp)
@@ -220,7 +221,7 @@ private fun AnimeDetailContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
-                        .clickable { onPlay(slug, 0, (ep.number - 1).coerceAtLeast(0)) },
+                        .clickable { onPlayAnime47(episodeIds, (ep.number - 1).coerceAtLeast(0), anime.title) },
                     shape = RoundedCornerShape(12.dp),
                     color = C.Surface
                 ) {

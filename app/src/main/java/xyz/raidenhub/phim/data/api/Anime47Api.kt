@@ -5,6 +5,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 import xyz.raidenhub.phim.data.api.models.Anime47DataWrapper
 import xyz.raidenhub.phim.data.api.models.Anime47DetailWrapper
+import xyz.raidenhub.phim.data.api.models.Anime47EpisodeStreamWrapper
 import xyz.raidenhub.phim.data.api.models.Anime47Genre
 import xyz.raidenhub.phim.data.api.models.Anime47Item
 import xyz.raidenhub.phim.data.api.models.Anime47SearchResponse
@@ -41,4 +42,30 @@ interface Anime47Api {
         @Path("id") id: Int,
         @Query("lang") lang: String = "vi"
     ): Anime47DetailWrapper
+
+    // ═══ Browse by Genre (slug) ═══
+    // Trả về danh sách anime theo thể loại chính xác theo slug
+    @GET("anime/list")
+    suspend fun getAnimeByGenre(
+        @Query("genre") genreSlug: String,
+        @Query("page") page: Int = 1,
+        @Query("lang") lang: String = "vi"
+    ): Anime47DataWrapper
+
+    // ═══ Browse by Category tab ═══
+    // category: "genres" | "demographics" | "themes" | "explicit"
+    @GET("anime/list")
+    suspend fun getAnimeByCategory(
+        @Query("category") category: String,
+        @Query("page") page: Int = 1,
+        @Query("lang") lang: String = "vi"
+    ): Anime47DataWrapper
+
+    // ═══ Episode Stream — Hướng B ═══
+    // Fetch M3U8 / stream sources cho một tập cụ thể
+    @GET("episode/info/{id}")
+    suspend fun getEpisodeStream(
+        @Path("id") id: Int,
+        @Query("lang") lang: String = "vi"
+    ): Anime47EpisodeStreamWrapper
 }

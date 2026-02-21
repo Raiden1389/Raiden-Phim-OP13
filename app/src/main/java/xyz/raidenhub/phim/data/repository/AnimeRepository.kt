@@ -36,8 +36,27 @@ object AnimeRepository {
         api.search(keyword).results
     }
 
+    /**
+     * Browse anime by genre slug — proper filter, accurate results.
+     * Fallback: nếu endpoint /anime/list?genre= fail → thử search bằng tên genre.
+     */
+    suspend fun getAnimeByGenre(genreSlug: String, genreName: String, page: Int = 1) = safeCall {
+        try {
+            val result = api.getAnimeByGenre(genreSlug, page).data
+            if (result.isNotEmpty()) result
+            else api.search(genreName).results  // fallback
+        } catch (_: Exception) {
+            api.search(genreName).results        // fallback nếu endpoint chưa tồn tại
+        }
+    }
+
     suspend fun getAnimeDetail(id: Int) = safeCall {
         api.getAnimeDetail(id).data
+    }
+
+    /** Hướng B: Fetch M3U8 stream URL cho 1 tập Anime47 theo episode ID */
+    suspend fun getEpisodeStream(episodeId: Int) = safeCall {
+        api.getEpisodeStream(episodeId).data
     }
 
     suspend fun getGenres() = safeCall {

@@ -1,5 +1,34 @@
 # Raiden Phim — Changelog
 
+## v1.18.0 — 2026-02-21 (Anime Player & Genre Browse)
+
+### ✨ New Features
+
+#### 🎌 Anime Player — Hướng B (A47-1)
+- **Phát anime trực tiếp từ Anime47 API** — Fix lỗi "ARRAY OBJECT" root cause: Player trước đây luôn gọi KKPhim API với anime slug → fail. Giờ Anime47 dùng flow riêng: `AnimeDetailScreen` → truyền `IntArray` episodeIds → `PlayerActivity` → `PlayerViewModel.loadAnime47()` → `Anime47Api.getEpisodeStream(id)` → lấy M3U8/stream URL → ExoPlayer
+- **Pre-fetch tập kế** — Khi tập hiện tại đã load xong, tập tiếp theo được pre-fetch stream ngầm → chuyển tập mượt mà
+- **Fallback `bestStreamUrl`** — Ưu tiên: `streamUrl` → HLS source (`.m3u8`) → MP4 source → embed link
+
+#### 🏷️ Anime Genre Browse (A47-2)
+- **Genre chip filter theo slug chính xác** — Tap thể loại trên tab Anime → fetch `GET /anime/list?genre={slug}` thay vì search keyword → kết quả chính xác theo đúng thể loại
+- **Fallback tự động** — Nếu endpoint `/anime/list?genre=` chưa có → tự fallback về keyword search, không bị crash
+- **Hiển thị 30 thể loại** — Tăng từ 20 → 30 genre chips hiển thị
+
+### 🐛 Bug Fix
+- **Anime player crash** — Root cause: `PlayerViewModel.load(animeSlug)` → KKPhim API → slug không tồn tại → parse fail → "ARRAY OBJECT" error. Fixed bằng source routing riêng biệt
+
+### 🔧 Technical
+- **`Anime47Models.kt`** — Thêm `Anime47EpisodeStream` (với `bestStreamUrl` computed property), `Anime47Source`, `Anime47EpisodeStreamWrapper`
+- **`Anime47Api.kt`** — Thêm `getEpisodeStream(id)`, `getAnimeByGenre(slug, page)`, `getAnimeByCategory(category, page)`
+- **`AnimeRepository.kt`** — Thêm `getEpisodeStream(episodeId)`, `getAnimeByGenre(slug, name)` với double-fallback
+- **`PlayerViewModel`** — Thêm `loadAnime47(episodeIds, epIdx, title)`, `fetchAnime47Stream(id)`. Episode placeholder format: `slug = "anime47::{id}"` để lazy-fetch
+- **`PlayerScreen`** — Thêm params `source`, `episodeIds`, `animeTitle`. `LaunchedEffect` branch theo source. Pre-fetch next ep khi episodeList thay đổi
+- **`PlayerActivity`** — Đọc thêm extras: `source`, `episodeIds` (IntArray), `animeTitle`
+- **`AnimeDetailScreen`** — Thay `onPlay(slug, server, ep)` → `onPlayAnime47(episodeIds, epIdx, title)`. Build `episodeIds` IntArray từ `latestEpisodes.map { it.id }`
+- **`AppNavigation`** — Thêm `startAnime47PlayerActivity()` helper, pass `source="kkphim"` cho KKPhim flow
+
+---
+
 ## v1.17.0 — 2026-02-21 (Home Screen Enhancements)
 
 ### ✨ New Features

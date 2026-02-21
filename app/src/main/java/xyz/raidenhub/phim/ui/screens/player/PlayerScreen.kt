@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Episode
 import xyz.raidenhub.phim.data.api.models.EpisodeServer
 import xyz.raidenhub.phim.data.local.SettingsManager
+import xyz.raidenhub.phim.data.repository.AnimeRepository
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.util.Constants
@@ -98,6 +99,49 @@ class PlayerViewModel : ViewModel() {
     fun setEpisode(idx: Int) { _currentEp.value = idx }
     fun hasNext() = _currentEp.value < _episodes.value.size - 1
     fun nextEp() { if (hasNext()) _currentEp.value++ }
+
+    /**
+     * Hướng B — Anime47 source:
+     * episodeIds = danh sách ID của tất cả tập (từ latestEpisodes)
+     * epIdx      = index tập muốn phát
+     *
+     * Flow: fetch tập đang chọn → bestStreamUrl → build Episode list
+     * Tập kế: fetch on-demand khi user nhấn next
+     */
+    fun loadAnime47(episodeIds: IntArray, epIdx: Int, animeTitle: String = "") {
+        viewModelScope.launch {
+            _title.value = animeTitle
+            val safeIdx = epIdx.coerceIn(0, (episodeIds.size - 1).coerceAtLeast(0))
+            _currentEp.value = safeIdx
+            // Build Episode placeholder list với id encoded vào slug (fetch lazy)
+            // Format slug: "anime47::{episodeId}" để PlayerScreen biết cách fetch
+            val placeholders = episodeIds.mapIndexed { i, id ->
+                Episode(
+                    name     = "Tập ${i + 1}",
+                    slug     = "anime47::$id",
+                    linkEmbed = "",
+                    linkM3u8  = ""  // sẽ fetch khi play
+                )
+            }
+            _episodes.value = placeholders
+            // Fetch ngay stream cho tập hiện tại
+            fetchAnime47Stream(episodeIds[safeIdx])
+        }
+    }
+
+    /** Fetch M3U8 cho episode id, update episode trong list */
+    fun fetchAnime47Stream(episodeId: Int) {
+        viewModelScope.launch {
+            AnimeRepository.getEpisodeStream(episodeId)
+                .onSuccess { stream ->
+                    val url = stream.bestStreamUrl
+                    // Update placeholder → real M3U8
+                    _episodes.value = _episodes.value.map { ep ->
+                        if (ep.slug == "anime47::$episodeId") ep.copy(linkM3u8 = url) else ep
+                    }
+                }
+        }
+    }
 }
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
@@ -107,6 +151,9 @@ fun PlayerScreen(
     server: Int,
     episode: Int,
     startPositionMs: Long = 0L,
+    source: String = "kkphim",          // "kkphim" | "anime47"
+    episodeIds: IntArray = intArrayOf(), // Anime47: danh sách ep IDs
+    animeTitle: String = "",            // Anime47: tên anime cho title bar
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
@@ -172,7 +219,28 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(slug) { vm.load(slug, server, episode) }
+    // ═══ LOAD — branch theo source ═══
+    LaunchedEffect(slug, source) {
+        if (source == "anime47" && episodeIds.isNotEmpty()) {
+            vm.loadAnime47(episodeIds, episode, animeTitle)
+        } else {
+            vm.load(slug, server, episode)
+        }
+    }
+
+    // Pre-fetch stream khi chuyển tập (chỉ Anime47)
+    val episodesForPrefetch by vm.episodes.collectAsState()
+    LaunchedEffect(episodesForPrefetch) {
+        if (source == "anime47") {
+            // Pre-fetch tập tiếp theo nếu chưa có M3U8
+            val nextIdx = vm.currentEp.value + 1
+            val nextEp = episodesForPrefetch.getOrNull(nextIdx)
+            if (nextEp != null && nextEp.linkM3u8.isBlank() && nextEp.slug.startsWith("anime47::")) {
+                val nextId = nextEp.slug.removePrefix("anime47::").toIntOrNull() ?: return@LaunchedEffect
+                vm.fetchAnime47Stream(nextId)
+            }
+        }
+    }
 
     val episodes by vm.episodes.collectAsState()
     val currentEp by vm.currentEp.collectAsState()

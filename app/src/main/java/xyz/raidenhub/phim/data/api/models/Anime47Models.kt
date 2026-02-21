@@ -100,3 +100,38 @@ data class Anime47Episode(
     @SerializedName("number") val number: Int = 0,
     @SerializedName("link") val link: String = ""
 )
+
+// ═══ Episode Stream — Hướng B ═══
+// API: GET /episode/info/{id}?lang=vi
+// Trả về link M3U8 + danh sách sources
+data class Anime47EpisodeStreamWrapper(
+    @SerializedName("data") val data: Anime47EpisodeStream = Anime47EpisodeStream()
+)
+
+@Immutable
+data class Anime47EpisodeStream(
+    @SerializedName("id") val id: Int = 0,
+    @SerializedName("title") val title: String = "",
+    @SerializedName("slug") val slug: String = "",
+    @SerializedName("link") val link: String = "",         // embed / fallback URL
+    @SerializedName("streamUrl") val streamUrl: String = "", // Direct M3U8 (nếu có)
+    @SerializedName("sources") val sources: List<Anime47Source> = emptyList(),
+    @SerializedName("animeId") val animeId: Int = 0,
+    @SerializedName("number") val number: Int = 0
+) {
+    /** Lấy M3U8 tốt nhất: ưu tiên streamUrl → HLS source → MP4 source */
+    val bestStreamUrl: String get() {
+        if (streamUrl.isNotBlank()) return streamUrl
+        val hls = sources.firstOrNull { it.type == "hls" || it.url.contains(".m3u8") }
+        if (hls != null) return hls.url
+        return sources.firstOrNull { it.url.isNotBlank() }?.url ?: link
+    }
+}
+
+@Immutable
+data class Anime47Source(
+    @SerializedName("url") val url: String = "",
+    @SerializedName("type") val type: String = "",    // "hls", "mp4", "dash"
+    @SerializedName("label") val label: String = ""   // "1080p", "720p", ...
+)
+

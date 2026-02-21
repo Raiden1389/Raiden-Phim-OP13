@@ -57,6 +57,17 @@ fun AppNavigation() {
             putExtra("server", server)
             putExtra("episode", episode)
             putExtra("positionMs", positionMs)
+            putExtra("source", "kkphim")
+        })
+    }
+
+    // Hướng B — Anime47 player
+    fun startAnime47PlayerActivity(episodeIds: IntArray, epIdx: Int, title: String) {
+        context.startActivity(Intent(context, PlayerActivity::class.java).apply {
+            putExtra("source", "anime47")
+            putExtra("episodeIds", episodeIds)
+            putExtra("episode", epIdx)
+            putExtra("animeTitle", title)
         })
     }
 
@@ -226,11 +237,13 @@ fun AppNavigation() {
             ) { entry ->
                 val id = entry.arguments?.getInt("id") ?: 0
                 val slug = entry.arguments?.getString("slug") ?: ""
-                xyz.raidenhub.phim.ui.screens.anime.AnimeDetailScreen(
+            xyz.raidenhub.phim.ui.screens.anime.AnimeDetailScreen(
                     animeId = id,
                     slug = slug,
                     onBack = { navController.popBackStack() },
-                    onPlay = { s, sv, ep -> startPlayerActivity(s, sv, ep) }
+                    onPlayAnime47 = { ids, epIdx, title ->
+                        startAnime47PlayerActivity(ids, epIdx, title)
+                    }
                 )
             }
 
