@@ -29,6 +29,7 @@ import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.Playlist
 import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.data.local.WatchlistItem
+import xyz.raidenhub.phim.ui.components.EmptyStateView
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.util.ImageUtils
 
@@ -59,14 +60,11 @@ fun WatchlistScreen(
         }
 
         if (items.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🔖", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Chưa có phim nào", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Bấm 🔖 trên phim bất kỳ để lưu", color = C.TextSecondary, fontSize = 14.sp)
-                }
-            }
+            EmptyStateView(
+                emoji = "🔖",
+                title = "Chưa có phim yêu thích",
+                subtitle = "Bấm 🔖 trên phim bất kỳ để lưu vào đây"
+            )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
@@ -168,12 +166,11 @@ fun PlaylistListScreen(
         }
 
         if (playlists.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📋", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Chưa có playlist nào", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
+            EmptyStateView(
+                emoji = "📋",
+                title = "Chưa có playlist nào",
+                subtitle = "Tạo playlist để sắp xếp phim theo sở thích",
+                action = {
                     Button(
                         onClick = { showCreateDialog = true },
                         colors = ButtonDefaults.buttonColors(containerColor = C.Primary),
@@ -184,7 +181,7 @@ fun PlaylistListScreen(
                         Text("Tạo Playlist mới", color = C.TextPrimary)
                     }
                 }
-            }
+            )
         } else {
             androidx.compose.foundation.lazy.LazyColumn(
                 contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)
@@ -323,14 +320,11 @@ fun PlaylistDetailScreen(
         }
 
         if (playlist.items.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🎬", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Playlist trống", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Thêm phim từ trang Detail", color = C.TextSecondary, fontSize = 14.sp)
-                }
-            }
+            EmptyStateView(
+                emoji = "🎬",
+                title = "Playlist trống",
+                subtitle = "Thêm phim từ trang Detail"
+            )
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),

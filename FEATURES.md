@@ -1,6 +1,6 @@
 # 🎬 RaidenPhim — Tính Năng
 
-> **Phiên bản:** v1.18.0 · **Build:** 52 · **Cập nhật:** 2026-02-21
+> **Phiên bản:** v1.19.1 · **Build:** 54 · **Cập nhật:** 2026-02-21
 
 ---
 
@@ -15,9 +15,11 @@
 | 📺 **Phim bộ / Lẻ / Hoạt hình** | Các hàng ngang theo danh mục, tự tải từ API|
 | 🌅 **Lời chào thông minh** | "Chào buổi sáng / chiều / tối" theo giờ thực tế |
 | 🏷️ **Filter đang hoạt động** | Badge hiển thị khi có filter quốc gia / thể loại đang bật |
-| 🔄 **Pull-to-Refresh** | Kéo xuống để làm mới nội dung |
+| 🔄 **Pull-to-Refresh** | Kéo xuống để làm mới — custom indicator Raiden style (purple spinner, dark surface) |
 | ⏭️ **Nút "Xem thêm"** | Header section có › để mở danh sách đầy đủ |
 | ⚡ **Quick Play** | Long-press poster bất kỳ → haptic + launch player ngay, bỏ qua Detail |
+| 👆 **Card Press Animation** | Scale 0.96 khi press poster card — micro-interaction premium |
+| 🎭 **Empty State Illustrations** | Emoji lơ lửng + animated text khi chưa có nội dung |
 
 ---
 
@@ -153,12 +155,9 @@
 ## 🗺️ Roadmap
 
 ### Đang lên kế hoạch:
-- **#N-1** Thông báo tập mới (WorkManager periodic check)
-- **#N-3** Widget "Xem tiếp" (4×2 home screen widget)
 - **#P-1** Subtitle Style (font, size, màu, opacity)
 - **#P-2** Subtitle Position (slider Y)
 - **#S-5** Dynamic Trending — từ khóa trending tính từ search history aggregate
-- **#TD-1** Xóa Extractor folder (giảm ~11MB APK)
 - **#TD-2** Room DB (thay SharedPreferences cho history/favorites)
 - **#B-3** Shared Element Transition (full Navigation 2.8+ API)
 

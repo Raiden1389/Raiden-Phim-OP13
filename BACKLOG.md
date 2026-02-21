@@ -40,12 +40,9 @@
 - [ ] #31 Dark/Light theme toggle
 - [x] #34 Notification tập mới
 - [x] #40 Season Grouping 📺 — detect multi-season, horizontal scroll chọn phần
-- [x] #41 English Tab (Consumet/FlixHQ) — Tab 🍿 English với Trending, Recent Movies, Recent Shows ✅ **Đã xóa** (chậm, lag, Consumet không ổn định)
-- [x] #42 Consumet Player Integration — stream M3U8 + subtitle picker cho phim English
-- [ ] #43 OpenSubtitles API Key — đăng ký opensubtitles.com để kích hoạt nguồn sub thứ 5
-- [ ] #44 English Search — tìm kiếm phim English bằng Consumet search API
+
 - [x] #45 Anime Detail Screen 🎌 — xem detail anime từ Anime47 API (backdrop, badges, episodes)
-- [ ] #46 Subtitle Format Support — hỗ trợ .srt/.ass ngoài .vtt (convert on-the-fly)
+
 - [x] #47 Donghua Section 🐉 — mục Hoạt Hình Trung Quốc trên tab Anime (search-based, curated keywords)
 - [x] #48 Genre Search 🔍 — bấm genre chip → search API lấy anime theo thể loại
 - [x] #49 See More Buttons › — nút "Xem thêm" trên section headers (Trending, Mới Cập Nhật, Sắp Chiếu)
@@ -55,7 +52,7 @@
 
 ## 🐛 Bugs Known
 - [x] #BUG-1 **Data loss khi update APK** 🔴 — favorites + watch history bị mất khi install over APK ✅ Fixed
-- [ ] #BUG-2 Consumet trending timeout — Vercel cold start gây timeout đôi khi (Consumet đã xóa, item này obsolete)
+- [x] #BUG-3 **Widget "Xem tiếp" không cập nhật** — widget hiện "Chưa có phim" dù đang xem. Fix: thêm `notifyWidgetUpdate()` broadcast
 
 ---
 
@@ -109,4 +106,3 @@
 - [x] #TD-1 **Xóa Extractor folder** — đã xóa 11MB Node.js dead code ở root project
 - [ ] #TD-2 **Room DB migration** — thay SharedPreferences bằng Room DB cho WatchHistory + Favorites (query nhanh hơn, type-safe)
 - [x] #TD-3 **Coil cache tuning** — 200MB disk cache + 50MB memory cache + hardware bitmaps (GPU) trong `App.kt`
-- [x] #TD-4 **Fix HomeScreen eng: refs** — đã xóa sạch, không còn `isEnglish`/`eng:` nào trong codebase

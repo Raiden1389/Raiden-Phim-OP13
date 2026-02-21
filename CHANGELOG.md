@@ -1,5 +1,66 @@
 # Raiden Phim — Changelog
 
+## v1.19.1 — 2026-02-21 (Shimmer Loading & Screen Transitions & UI Polish)
+
+### ✨ New Features
+
+#### 💀 Shimmer Skeleton Loading
+- **`ShimmerEffect.kt`** — Shared component: `rememberShimmerBrush()` gradient sweep animation, `ShimmerDetailScreen()` cho detail skeleton, `ShimmerGrid()` cho grid skeleton
+- **DetailScreen** — Spinner → `ShimmerDetailScreen` (backdrop + title + badges + cast + episodes)
+- **AnimeDetailScreen** — Spinner → `ShimmerDetailScreen`
+- **CategoryScreen** — Spinner → `ShimmerGrid` (3 rows)
+- **SearchScreen** — Spinner → `ShimmerGrid` (3 rows)
+- **AnimeScreen (genre)** — Spinner → `ShimmerGrid` (2 rows)
+- **AnimeScreen (donghua)** — Spinner → custom shimmer row (4 poster placeholders)
+
+#### 🎬 Screen Transitions (Premium)
+- **Forward** — `fadeIn + slideIn(1/5) + scaleIn(0.92→1.0)` với `FastOutSlowInEasing`
+- **Exit** — `fadeOut + scaleOut(→0.95)` — co lại nhẹ khi rời
+- **Pop back** — slide ngược + scale ngược, tự nhiên hơn
+- **Before** — chỉ fade + slideIn đơn giản, thiếu depth
+- **After** — hiệu ứng "zoom into content" premium
+
+### 🔧 Technical
+- **`ShimmerEffect.kt`** — New shared component: `rememberShimmerBrush()` (infinite gradient animation), `ShimmerDetailScreen()`, `ShimmerGrid(rows)`
+- **`AppNavigation.kt`** — Refined transition specs, thêm `scaleIn/scaleOut`, `FastOutSlowInEasing`
+- **6 screens updated** — Thay `CircularProgressIndicator` → Shimmer components
+- **`tools/ram-watchdog/`** — VS Code extension monitor RAM usage, status bar live, kill process
+
+#### 👆 Card Press Animation
+- **MovieCard** — scaleDown `0.96f` khi press poster (điều chỉnh từ 0.94 → tinh tế hơn)
+
+#### 🎭 Empty State Illustrations
+- **`EmptyStateView.kt`** — Shared component: floating emoji animation + styled text
+- **WatchHistoryScreen** — "🍿 Chưa xem phim nào" với emoji lơ lửng
+- **SearchScreen** — "🔍 Không tìm thấy phim nào"
+- **WatchlistScreen** — 3 empty states (Favorites, Playlists, Playlist detail)
+
+#### � Pull-to-Refresh (Custom)
+- **HomeScreen** — `PullToRefreshBox` Material3 với indicator màu Raiden (purple container + primary spinner)
+
+### 🐛 Bug Fixes
+- **Widget "Xem tiếp"** — Fix widget không cập nhật khi có phim mới. Thêm `notifyWidgetUpdate()` broadcast khi `saveContinue()` thay đổi data
+
+### �📁 Files modified
+| File | Changes |
+|------|---------|
+| `ShimmerEffect.kt` | **NEW** — shared shimmer components |
+| `EmptyStateView.kt` | **NEW** — shared empty state component |
+| `DetailScreen.kt` | Spinner → ShimmerDetailScreen |
+| `AnimeDetailScreen.kt` | Spinner → ShimmerDetailScreen |
+| `CategoryScreen.kt` | Spinner → ShimmerGrid |
+| `SearchScreen.kt` | Spinner → ShimmerGrid + EmptyStateView |
+| `AnimeScreen.kt` | Spinner → ShimmerGrid + shimmer row |
+| `AppNavigation.kt` | Transition specs upgrade |
+| `MovieCard.kt` | Press scale 0.94→0.96 |
+| `WatchHistoryScreen.kt` | EmptyStateView |
+| `WatchlistScreen.kt` | EmptyStateView (3 spots) |
+| `HomeScreen.kt` | PullToRefreshBox |
+| `WatchHistoryManager.kt` | Widget update notification |
+| `build.gradle.kts` | Version bump 53→54 |
+
+---
+
 ## v1.18.0 — 2026-02-21 (Anime Player & Genre Browse & UI Premium)
 
 ### ✨ New Features

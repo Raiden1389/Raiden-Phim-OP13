@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 52
-        versionName = "1.18.0"
+        versionCode = 54
+        versionName = "1.19.1"
     }
 
     signingConfigs {

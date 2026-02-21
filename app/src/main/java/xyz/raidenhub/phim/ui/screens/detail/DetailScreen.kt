@@ -56,6 +56,7 @@ import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
+import xyz.raidenhub.phim.ui.components.ShimmerDetailScreen
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
@@ -130,9 +131,7 @@ fun DetailScreen(
     val continueList by WatchHistoryManager.continueList.collectAsState()
 
     when (val s = state) {
-        is DetailState.Loading -> Box(Modifier.fillMaxSize().background(C.Background), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = C.Primary)
-        }
+        is DetailState.Loading -> ShimmerDetailScreen()
         is DetailState.Error -> Box(Modifier.fillMaxSize().background(C.Background), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("😕 ${s.message}", color = C.TextPrimary)

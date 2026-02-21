@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Anime47Detail
 import xyz.raidenhub.phim.data.api.models.Anime47Episode
 import xyz.raidenhub.phim.data.repository.AnimeRepository
+import xyz.raidenhub.phim.ui.components.ShimmerDetailScreen
 import xyz.raidenhub.phim.ui.theme.C
 
 // #45 — Anime Detail Screen
@@ -51,9 +52,7 @@ fun AnimeDetailScreen(
     }
 
     when {
-        isLoading -> Box(Modifier.fillMaxSize().background(C.Background), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = C.Primary)
-        }
+        isLoading -> ShimmerDetailScreen()
         error != null -> Box(Modifier.fillMaxSize().background(C.Background), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("😕 $error", color = C.TextPrimary)

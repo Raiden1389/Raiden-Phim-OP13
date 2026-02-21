@@ -1,0 +1,70 @@
+{
+    "name": "ram-watchdog",
+    "displayName": "RAM Watchdog",
+    "description": "Monitor RAM usage of IDE-related processes. Shows live memory in status bar, alerts on high usage, and lets you kill heavy processes.",
+    "version": "1.0.0",
+    "publisher": "raiden",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "ramWatchdog.showDetails",
+                "title": "RAM Watchdog: Show Process Details"
+            },
+            {
+                "command": "ramWatchdog.killProcess",
+                "title": "RAM Watchdog: Kill Heavy Process"
+            },
+            {
+                "command": "ramWatchdog.refresh",
+                "title": "RAM Watchdog: Refresh Now"
+            }
+        ],
+        "configuration": {
+            "title": "RAM Watchdog",
+            "properties": {
+                "ramWatchdog.updateInterval": {
+                    "type": "number",
+                    "default": 10,
+                    "minimum": 3,
+                    "maximum": 120,
+                    "description": "How often to check RAM usage (in seconds)"
+                },
+                "ramWatchdog.warningThresholdMB": {
+                    "type": "number",
+                    "default": 2048,
+                    "description": "Show warning when a single process exceeds this MB"
+                },
+                "ramWatchdog.criticalThresholdMB": {
+                    "type": "number",
+                    "default": 4096,
+                    "description": "Show critical alert when a single process exceeds this MB"
+                },
+                "ramWatchdog.totalWarningMB": {
+                    "type": "number",
+                    "default": 8192,
+                    "description": "Show warning when total IDE-related RAM exceeds this MB"
+                },
+                "ramWatchdog.showInStatusBar": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show RAM usage in status bar"
+                },
+                "ramWatchdog.enableNotifications": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show notification popups for warnings"
+                }
+            }
+        }
+    }
+}

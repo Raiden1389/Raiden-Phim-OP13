@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
+import xyz.raidenhub.phim.ui.components.EmptyStateView
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.util.ImageUtils
@@ -52,14 +53,11 @@ fun WatchHistoryScreen(
         )
 
         if (continueList.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📺", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text("Chưa có lịch sử xem", color = C.TextSecondary, fontSize = 16.sp)
-                    Text("Bắt đầu xem phim để thấy ở đây", color = C.TextMuted, fontSize = 13.sp)
-                }
-            }
+            EmptyStateView(
+                emoji = "🍿",
+                title = "Chưa xem phim nào",
+                subtitle = "Bắt đầu xem phim để thấy lịch sử ở đây"
+            )
         } else {
             Text(
                 "${continueList.size} phim đang xem",

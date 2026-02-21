@@ -38,6 +38,8 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.MovieCard
+import xyz.raidenhub.phim.ui.components.EmptyStateView
+import xyz.raidenhub.phim.ui.components.ShimmerGrid
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
@@ -403,33 +405,13 @@ fun SearchScreen(
                 }
             }
         } else if (loading && results.isEmpty()) {
-            Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(32.dp))
-            }
+            ShimmerGrid(rows = 3)
         } else if (displayResults.isEmpty() && !loading) {
-            Box(
-                Modifier.fillMaxSize().padding(horizontal = 32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🎥", fontSize = 48.sp)
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Không tìm thấy phim nào",
-                        color = C.TextPrimary,
-                        fontFamily = JakartaFamily,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Thử tìm với từ khoá khác hoặc kiểm tra lại chính tả",
-                        color = C.TextSecondary,
-                        fontFamily = InterFamily,
-                        fontSize = 14.sp
-                    )
-                }
-            }
+            EmptyStateView(
+                emoji = "🔍",
+                title = "Không tìm thấy phim nào",
+                subtitle = "Thử tìm với từ khoá khác hoặc kiểm tra lại chính tả"
+            )
         } else {
             // Save search when results appear
             LaunchedEffect(results) {

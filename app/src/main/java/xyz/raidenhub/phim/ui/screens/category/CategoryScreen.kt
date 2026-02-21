@@ -29,6 +29,7 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.ApiClient
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.ui.components.MovieCard
+import xyz.raidenhub.phim.ui.components.ShimmerGrid
 import xyz.raidenhub.phim.ui.theme.C
 
 class CategoryViewModel : ViewModel() {
@@ -241,9 +242,7 @@ fun CategoryScreen(
         }
 
         if (loading && movies.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = C.Primary)
-            }
+            ShimmerGrid()
         } else if (movies.isEmpty() && !loading) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Không có phim nào", color = C.TextSecondary, fontSize = 16.sp)

@@ -20,6 +20,7 @@ object WatchHistoryManager {
     private const val TAG = "WatchHistory"
 
     private lateinit var prefs: SharedPreferences
+    private lateinit var appContext: Context
     private val gson = Gson()
 
     private val _continueList = MutableStateFlow<List<ContinueItem>>(emptyList())
@@ -44,6 +45,7 @@ object WatchHistoryManager {
     }
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
         _continueList.value = loadContinue()
         _watchedEps.value = loadWatched()
@@ -116,6 +118,26 @@ object WatchHistoryManager {
 
     private fun saveContinue(items: List<ContinueItem>) {
         prefs.edit().putString(KEY_CONTINUE, gson.toJson(items)).commit()
+        // Notify widget to refresh
+        notifyWidgetUpdate()
+    }
+
+    private fun notifyWidgetUpdate() {
+        try {
+            if (!::appContext.isInitialized) return
+            val mgr = android.appwidget.AppWidgetManager.getInstance(appContext)
+            val component = android.content.ComponentName(appContext, xyz.raidenhub.phim.widget.ContinueWatchingWidgetReceiver::class.java)
+            val ids = mgr.getAppWidgetIds(component)
+            if (ids.isNotEmpty()) {
+                val updateIntent = android.content.Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+                updateIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
+                updateIntent.component = component
+                appContext.sendBroadcast(updateIntent)
+                Log.d(TAG, "Widget update triggered for ${ids.size} widgets")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Widget update failed: ${e.message}")
+        }
     }
 
     private fun loadWatched(): Map<String, Set<Int>> {

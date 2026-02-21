@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -144,10 +145,21 @@ fun HomeScreen(
                 }
             }
 
+            // #5 — Pull-to-Refresh
+            val scope = rememberCoroutineScope()
 
-
-
-            Box {
+            @OptIn(ExperimentalMaterial3Api::class)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    scope.launch {
+                        vm.load()
+                        delay(800)
+                        isRefreshing = false
+                    }
+                }
+            ) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().background(C.Background),
                     contentPadding = PaddingValues(bottom = 80.dp)

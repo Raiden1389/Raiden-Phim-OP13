@@ -2,6 +2,7 @@ package xyz.raidenhub.phim.navigation
 
 import android.content.Intent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -52,11 +53,17 @@ import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.InterFamily
 
-// #39 — Animated transition specs
-private val enterAnim = fadeIn(tween(300)) + slideInHorizontally(tween(300)) { it / 4 }
-private val exitAnim = fadeOut(tween(200))
-private val popEnterAnim = fadeIn(tween(300)) + slideInHorizontally(tween(300)) { -it / 4 }
-private val popExitAnim = fadeOut(tween(200)) + slideOutHorizontally(tween(200)) { it / 4 }
+// #39 — Refined transition specs (premium feel)
+private val enterAnim = fadeIn(tween(350)) +
+    slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { it / 5 } +
+    scaleIn(tween(350), initialScale = 0.92f)
+private val exitAnim = fadeOut(tween(200)) +
+    scaleOut(tween(200), targetScale = 0.95f)
+private val popEnterAnim = fadeIn(tween(300)) +
+    slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 5 } +
+    scaleIn(tween(300), initialScale = 0.95f)
+private val popExitAnim = fadeOut(tween(250)) +
+    slideOutHorizontally(tween(250)) { it / 5 }
 
 @Composable
 fun AppNavigation() {

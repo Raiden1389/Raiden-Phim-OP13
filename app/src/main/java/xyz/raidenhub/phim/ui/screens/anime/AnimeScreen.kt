@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Anime47Genre
 import xyz.raidenhub.phim.data.api.models.Anime47Item
 import xyz.raidenhub.phim.data.repository.AnimeRepository
+import xyz.raidenhub.phim.ui.components.ShimmerGrid
+import xyz.raidenhub.phim.ui.components.rememberShimmerBrush
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 
@@ -129,9 +131,7 @@ private fun AnimeContent(
         if (selectedGenre != null) {
             if (genreLoading) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(32.dp))
-                    }
+                    ShimmerGrid(rows = 2)
                 }
             } else if (genreResults.isNotEmpty()) {
                 item {
@@ -462,12 +462,25 @@ private fun DonghuaSection(onAnimeClick: (Int, String) -> Unit) {
     }
 
     if (isLoading) {
-        // Shimmer placeholder
-        Box(
-            Modifier.fillMaxWidth().padding(vertical = 16.dp),
-            contentAlignment = Alignment.Center
+        // Shimmer row placeholder
+        val brush = rememberShimmerBrush()
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(24.dp))
+            repeat(4) {
+                Column(Modifier.width(130.dp)) {
+                    Box(
+                        Modifier.fillMaxWidth().aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(8.dp)).background(brush)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Box(
+                        Modifier.fillMaxWidth(0.7f).height(12.dp)
+                            .clip(RoundedCornerShape(4.dp)).background(brush)
+                    )
+                }
+            }
         }
     } else if (donghuaList.isNotEmpty()) {
         Spacer(Modifier.height(16.dp))
