@@ -459,7 +459,7 @@ fun SettingsScreen() {
                     .clip(RoundedCornerShape(12.dp))
                     .background(C.Surface)
                     .clickable {
-                        xyz.raidenhub.phim.ui.screens.search.SearchHistoryManager.clearAll(context)
+                        xyz.raidenhub.phim.data.local.SearchHistoryManager.clearAll(context)
                         Toast.makeText(context, "✅ Đã xoá lịch sử tìm kiếm", Toast.LENGTH_SHORT).show()
                     }
                     .padding(16.dp),

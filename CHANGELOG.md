@@ -1,5 +1,38 @@
 # Raiden Phim — Changelog
 
+## v1.19.2 — 2026-02-21 (Phase 01: God Screen Split)
+
+### 🔧 Refactoring — God Screen Split
+
+Tách 4 màn hình "God Screen" monolithic thành các file nhỏ hơn, dễ bảo trì.
+
+#### HomeScreen (798L → 3 files)
+- **`HomeViewModel.kt`** — ViewModel + `HomeState` sealed class
+- **`HomeComponents.kt`** — `HeroCarousel`, `MovieRowSection`, `ShimmerHomeScreen`, `MovieCard`
+- **`HomeScreen.kt`** — UI composable only
+
+#### SearchScreen (538L → 3 files)
+- **`SearchViewModel.kt`** — ViewModel + `SearchSort`, `TRENDING_KEYWORDS`, `GENRE_CHIPS`
+- **`SearchComponents.kt`** — `normalizeKeyword`, `SearchHistoryManager`
+- **`SearchScreen.kt`** — UI composable only
+
+#### DetailScreen (827L → 3 files)
+- **`DetailViewModel.kt`** — ViewModel + `DetailState` sealed class
+- **`DetailComponents.kt`** — `rememberDominantColor`, `Badge3`
+- **`DetailScreen.kt`** — UI composable only
+
+#### PlayerScreen (1298L → 2 files)
+- **`PlayerViewModel.kt`** — ViewModel + `formatTime` utility
+- **`PlayerScreen.kt`** — UI composable (OTT controls, sheets, dialogs)
+
+### 🐛 Fixes
+- **Deprecated Icons** — `Icons.Default.VolumeUp` → `Icons.AutoMirrored.Filled.VolumeUp`, `ViewList` → `AutoMirrored.Filled.ViewList`
+- **Redundant `C.Badge`** — Removed duplicate extension in `DetailComponents.kt` (already exists in theme)
+
+### 📦 Files Changed
+- 4 files split → 13 files total (9 new, 4 rewritten)
+- Zero functional changes — pure refactoring
+
 ## v1.19.1 — 2026-02-21 (Shimmer Loading & Screen Transitions & UI Polish)
 
 ### ✨ New Features

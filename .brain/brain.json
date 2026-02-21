@@ -1,0 +1,272 @@
+{
+    "meta": {
+        "schema_version": "1.1.0",
+        "awf_version": "4.0.2",
+        "created_at": "2026-02-21T22:30:00+07:00",
+        "updated_at": "2026-02-21T22:30:00+07:00"
+    },
+    "project": {
+        "name": "RaidenPhim",
+        "type": "Android Native App (Kotlin + Jetpack Compose)",
+        "status": "active",
+        "description": "Ứng dụng xem phim native Android — dark theme cinematic, multi-source API, OTT-style player",
+        "package": "xyz.raidenhub.phim",
+        "version": "1.19.1",
+        "build": 54,
+        "min_sdk": 24,
+        "target_sdk": 35,
+        "compile_sdk": 36,
+        "apk_output": "RaidenPhim-v{version}.apk",
+        "apk_auto_copy": "H:/My Drive/Raiden APK",
+        "keystore": "raidenphim.jks"
+    },
+    "tech_stack": {
+        "language": {
+            "name": "Kotlin",
+            "version": "2.2.20"
+        },
+        "ui_framework": {
+            "name": "Jetpack Compose",
+            "bom": "2026.02.00",
+            "material": "Material3"
+        },
+        "build": {
+            "agp": "8.10.0",
+            "minify": true,
+            "shrink_resources": true,
+            "proguard": "proguard-rules.pro"
+        },
+        "image_loading": {
+            "name": "Coil 3",
+            "version": "3.3.0",
+            "proxy": "wsrv.nl (resize + compress server-side)"
+        },
+        "video_player": {
+            "name": "ExoPlayer (Media3)",
+            "version": "1.9.2",
+            "hls": true,
+            "okhttp_datasource": true
+        },
+        "navigation": {
+            "name": "Compose Navigation",
+            "version": "2.9.7",
+            "player_pattern": "Separate Activity (Netflix/YouTube style)"
+        },
+        "networking": {
+            "http_client": "OkHttp 4.12.0",
+            "api_client": "Retrofit 2.11.0",
+            "serialization": "Gson (converter-gson)",
+            "http_cache": "50MB"
+        },
+        "storage": {
+            "primary": "SharedPreferences (via Managers)",
+            "datastore": "DataStore Preferences 1.2.0",
+            "note": "Tech debt #TD-2: migrate to Room DB"
+        },
+        "notifications": {
+            "worker": "WorkManager 2.10.1 (EpisodeCheckWorker)",
+            "widget": "Glance AppWidget 1.1.1 (ContinueWatchingWidget)"
+        },
+        "other": {
+            "palette": "androidx.palette:palette-ktx:1.0.0 (Dynamic Color)",
+            "splashscreen": "core-splashscreen:1.2.0",
+            "coroutines": "kotlinx-coroutines-android:1.10.2",
+            "fonts": "Google Fonts (Jakarta, Inter)"
+        }
+    },
+    "architecture": {
+        "pattern": "MVVM (ViewModel + StateFlow)",
+        "layers": {
+            "data/api": "Retrofit interfaces (OPhimApi, KKPhimApi, Anime47Api, SubtitleApis)",
+            "data/api/models": "Data classes (OPhim, KKPhim, Anime47 models)",
+            "data/local": "Singleton Managers (SharedPreferences + MutableStateFlow)",
+            "data/repository": "MovieRepository, AnimeRepository, SubtitleRepository",
+            "ui/screens": "10 screen packages (home, detail, player, search, category, anime, settings, history, genre, watchlist)",
+            "ui/components": "Shared components (MovieCard, EmptyStateView, ShimmerEffect)",
+            "ui/theme": "Theme, Colors, Typography (Jakarta + Inter)",
+            "navigation": "AppNavigation (routes) + Screen (sealed class)",
+            "util": "Constants, ImageUtils, TextUtils, SubtitleConverter, SubtitleDownloader",
+            "widget": "ContinueWatchingWidget (Glance)",
+            "notification": "EpisodeCheckWorker"
+        },
+        "entry_points": [
+            "App.kt — Application class, init managers + Coil",
+            "MainActivity.kt — Main Compose host",
+            "PlayerActivity.kt — Separate fullscreen player (Vietnamese + Anime47)"
+        ]
+    },
+    "data_sources": [
+        {
+            "name": "OPhim API",
+            "base_url": "ophim1.com",
+            "role": "Primary Vietnamese movie source",
+            "api_file": "OPhimApi.kt"
+        },
+        {
+            "name": "KKPhim API",
+            "base_url": "phimapi.com",
+            "role": "Secondary Vietnamese movie source (TV Shows, fallback)",
+            "api_file": "KKPhimApi.kt"
+        },
+        {
+            "name": "Anime47 API",
+            "base_url": "anime47.love/api",
+            "role": "Anime source (trending, latest, genre, episodes, streaming)",
+            "api_file": "Anime47Api.kt"
+        },
+        {
+            "name": "OMDB API",
+            "role": "IMDb ratings",
+            "integrated_in": "DetailScreen (LaunchedEffect)"
+        },
+        {
+            "name": "TMDB API",
+            "role": "TMDB ratings + Cast photos (Credits API)",
+            "integrated_in": "DetailScreen (LaunchedEffect)"
+        },
+        {
+            "name": "wsrv.nl",
+            "role": "Image proxy — resize + WebP compress server-side",
+            "integrated_in": "ImageUtils.kt"
+        }
+    ],
+    "local_managers": [
+        {
+            "file": "FavoriteManager.kt",
+            "role": "Toggle ❤️ favorites, SharedPreferences + MutableStateFlow<List>"
+        },
+        {
+            "file": "WatchHistoryManager.kt",
+            "role": "Continue Watching + Watch History + episode progress, notifies widget"
+        },
+        {
+            "file": "WatchlistManager.kt",
+            "role": "🔖 Watchlist (Xem Sau) + 📋 User Playlists, add/remove/toggle"
+        },
+        {
+            "file": "SettingsManager.kt",
+            "role": "Quality, auto-play, country/genre filter, export/import backup"
+        },
+        {
+            "file": "HeroFilterManager.kt",
+            "role": "Hide movies from Hero Carousel (long-press → hide)"
+        },
+        {
+            "file": "SectionOrderManager.kt",
+            "role": "Reorder Home sections (↑↓ trong Settings)"
+        },
+        {
+            "file": "IntroOutroManager.kt",
+            "role": "Mark intro/outro per-series + per-country defaults, 3-level hierarchy"
+        }
+    ],
+    "screens": [
+        "HomeScreen — Hero Carousel, Continue Watching, Favorites, History, category rows, Quick Play, Pull-to-Refresh",
+        "DetailScreen — Parallax backdrop, Dynamic Color, TMDB/IMDb ratings, cast photos, episodes, watchlist, related movies",
+        "PlayerScreen — OTT controls, gestures (seek/brightness/volume), intro skip, episode bottom sheet, PiP",
+        "SearchScreen — Voice search, history, trending, genre chips, filters, sort, autocomplete",
+        "CategoryScreen — Country + year filters, infinite scroll pagination",
+        "AnimeScreen — Anime47 tab: trending, latest, upcoming, genres, donghua section",
+        "AnimeDetailScreen — Anime detail with episode list, plays via Anime47 stream",
+        "GenreHubScreen — Grid of genre icons → CategoryScreen",
+        "WatchlistScreen — Watchlist (Xem Sau) + User Playlists",
+        "SettingsScreen — Quality, auto-play, filters, section order, hero filter, export/import, version info",
+        "WatchHistoryScreen — Full history with progress bars"
+    ],
+    "features_count": 60,
+    "knowledge_items": {
+        "patterns": [
+            "Separate Activity for Player (avoid insets conflict with Scaffold)",
+            "Singleton Managers with SharedPreferences + MutableStateFlow (reactive)",
+            "wsrv.nl image proxy for server-side resize/compress",
+            "3-level intro/outro hierarchy: per-series > per-country > fallback",
+            "Proguard: MUST keep inner classes (-keep class **$*) for Gson",
+            "TV Shows row: parallel fetch page 1+2 → distinctBy slug → ~20 items",
+            "SharedPreferences → Gson serialize/deserialize data classes",
+            "Shimmer skeleton loading (shared ShimmerEffect.kt component)",
+            "Empty state illustrations (shared EmptyStateView.kt component)"
+        ],
+        "gotchas": [
+            {
+                "issue": "Data loss when updating APK — R8 obfuscates inner classes",
+                "solution": "proguard-rules.pro: -keep class data.local.** { *; } + -keep class **$* { *; }",
+                "severity": "critical"
+            },
+            {
+                "issue": "Player not fullscreen — enableEdgeToEdge() conflicts with hideSystemUI()",
+                "solution": "Removed enableEdgeToEdge(), use separate PlayerActivity with Fullscreen theme XML",
+                "severity": "critical"
+            },
+            {
+                "issue": "Android 15+ scrim/contrast enforcement on gesture bars",
+                "solution": "Set isNavigationBarContrastEnforced = false + isStatusBarContrastEnforced = false in both XML and runtime",
+                "severity": "medium"
+            },
+            {
+                "issue": "Movie.type not in search response — only in MovieDetail",
+                "solution": "Use episodeCurrent.contains('full') heuristic to distinguish movies vs series",
+                "severity": "low"
+            },
+            {
+                "issue": "HapticFeedbackType import: foundation.hapticfeedback doesn't exist",
+                "solution": "Import from androidx.compose.ui.hapticfeedback",
+                "severity": "low"
+            },
+            {
+                "issue": "CategoryScreen infinite scroll stops at 10 items",
+                "solution": "Use pagination.totalPages from API response directly, don't self-calculate",
+                "severity": "medium"
+            }
+        ],
+        "conventions": [
+            "Dark theme only (Netflix-inspired palette)",
+            "Typography: JakartaFamily for headers/titles, InterFamily for body/time",
+            "Bottom nav order: Phim → 🎌 Anime → Tìm kiếm → Lịch sử → Cài đặt",
+            "MovieCard: scale 0.96 on press (micro-interaction)",
+            "Screen transitions: fadeIn + slideIn(1/5) + scaleIn(0.92→1.0)",
+            "Auto-copy release APK to H:/My Drive/Raiden APK"
+        ]
+    },
+    "backlog_remaining": [
+        {
+            "id": "#31",
+            "title": "Dark/Light theme toggle",
+            "priority": "P3"
+        },
+        {
+            "id": "#51",
+            "title": "Donghua Style Filter (API animeStyles)",
+            "priority": "P3"
+        },
+        {
+            "id": "#P-1/#52",
+            "title": "Subtitle Style (font, size, color, opacity)",
+            "priority": "planned"
+        },
+        {
+            "id": "#P-2/#53",
+            "title": "Subtitle Position (slider Y)",
+            "priority": "planned"
+        },
+        {
+            "id": "#54",
+            "title": "Long press speed 2x",
+            "priority": "P3"
+        },
+        {
+            "id": "#S-5",
+            "title": "Dynamic Trending from search history aggregate",
+            "priority": "planned"
+        },
+        {
+            "id": "#TD-2",
+            "title": "Room DB migration (replace SharedPreferences)",
+            "priority": "tech-debt"
+        },
+        {
+            "id": "#B-3",
+            "title": "Shared Element Transition (Navigation 2.8+)",
+            "priority": "planned"
+        }
+    ]
+}

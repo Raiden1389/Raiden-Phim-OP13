@@ -70,6 +70,7 @@
 - [x] #S-3  **Smart Keyword Normalize** — "han quoc" → "Hàn Quốc", "hanh dong" → "Hành động"; áp dụng cả voice search
 - [x] #S-4  **Sort Search Results** — Dropdown: 🕒 Mới nhất / 📋 Cũ nhất / 🔤 Tên A-Z
 - [ ] #S-5  **Dynamic Trending** — Trending keywords tính từ search history aggregate (top 16 từ khóa phổ biến nhất)
+- [ ] #S-6  **Unified Multi-API Search** — Search 1 lần → query OPhim + KKPhim + Anime47 song song → merge + dedup → hiện badge nguồn (🎬 OPhim / 📺 KKPhim / 🎌 Anime47) trên mỗi kết quả. Tab chip filter theo source
 
 ### 🎬 Detail
 - [x] #D-3  **TMDB Rating** — Fetch song song với IMDb, hiển thị "🍅 TMDB X.X/10" trong info chip row
@@ -84,6 +85,13 @@
 - [ ] #54   Long press speed 2x — giữ màn hình để xem 2x, thả về bình thường
 - [ ] #P-1  **Subtitle Style** — (alias #52) font, size, màu chữ, màu nền, opacity via Settings
 - [ ] #P-2  **Subtitle Position** — (alias #53) slider điều chỉnh offset Y của subtitle
+- [ ] #PL-1 **Seekbar Preview Thumbnail** — Kéo seek bar → hiện thumbnail frame tại vị trí (giống YouTube). Tìm đúng cảnh muốn xem lại
+- [ ] #PL-2 **A-B Repeat Loop** — Đánh dấu 2 điểm → lặp lại đoạn đó. Cho cảnh hay / nghe nhạc phim
+- [ ] #PL-3 **Swipe Horizontal Seek** — Swipe ngang trên player = seek liên tục (giống MX Player). Chính xác hơn double-tap
+- [ ] #PL-4 **Remaining Time Toggle** — Tap vào thời lượng → toggle: `1:23:45` (total) ↔ `-0:37:12` (còn lại). Biết còn bao lâu
+- [ ] #PL-5 **Smooth Episode Transition** — Hết tập → crossfade 1.5s + hiện tên tập mới dạng cinematic ("Tập 13: Bí Mật"). Binge mượt
+- [ ] #PL-6 **Smart Intro Detection (per-country)** — Track vị trí user skip đầu tập theo `countryCode`. Sau 3+ tập cùng quốc gia skip ±same timestamp → hỏi "Phim HQ hay intro ~55s, lưu country default?" → feed vào IntroOutroManager.promoteToCountryDefault(). Learn per 🇰🇷/🇨🇳/🇯🇵 riêng
+- [ ] #PL-7 **Smart Episode Notification** — Ưu tiên phim rate 🔥 + xem gần đây. Text thông minh: "Vincenzo có tập 13! Bạn xem đến tập 12 hôm qua 🍿". Không spam phim quên lâu
 
 ### ⚙️ Settings
 - [x] #SE-1 **Default Playback Quality** — Chọn mặc định: Auto / 360p / 720p / 1080p khi start player
@@ -102,7 +110,46 @@
 ## 🎮 Player Features (từ backlog nội bộ)
 *(đã merge lên section Player ở trên)*
 
+## 🏠 Personal UX (v1.20+)
+- [ ] #UX-1  **Smart Home theo ngữ cảnh** — Buổi tối: Continue Watching lên hero to nhất, 1 tap → xem ngay. Buổi sáng: hiện phim mới. Dựa vào giờ + lịch sử xem
+- [ ] #UX-2  **Episode Tracker Badge** — Trên mỗi poster phim bộ đang xem: vòng tròn progress + "12/48 tập". Nhìn biết ngay xem được bao nhiêu
+- [ ] #UX-3  **Quick Rating (Emoji)** — Xem xong phim/tập → popup nhẹ: 🔥👍😐💤. 1 tap rate. Data feed vào Taste Profile + thống kê
+
+## 🎨 Visual Polish (v1.20+)
+- [ ] #VP-1  **Accent Color Picker** — Settings: chọn màu chủ đạo app (6 preset + custom HSL). Giữ dark theme, chỉ đổi accent color (nút, highlight, indicator)
+- [ ] #VP-2  **Animated Number Counter** — Detail screen: rating, năm, số tập chạy counter từ 0 (count-up animation). Nhỏ nhưng premium
+- [ ] #VP-3  **Category Colors** — Mỗi thể loại có gradient riêng (Hành động = đỏ cam, Kinh dị = tím đen, Tình cảm = hồng). Genre Hub + chips dùng màu tương ứng
+- [ ] #VP-4  **Living Wallpaper Home** — Background Home = poster phim đang xem, blur 60% làm nền. Mỗi ngày khác vì đang xem phim khác. App "sống", zero config
+- [ ] #VP-5  **Card Shape Variants** — Settings: chọn hình poster card: Bo tròn mềm (iOS) / Bo nhẹ (Android) / Vuông cứng (Cinematic) / Asymmetric (nghệ)
+
+## ⚡ Micro-UX (v1.20+)
+- [ ] #MU-1  **Swipe chuyển tab** — HorizontalPager cho bottom nav 5 tab, swipe trái/phải chuyển tab. Dùng 1 tay thoải mái
+- [ ] #MU-2  **Double-tap Poster Info** — Double-tap poster bất kỳ → popup card (rating, năm, số tập, nút Play). Không cần vào Detail
+- [ ] #MU-3  **Thống kê xem phim** — Screen trong Settings: tổng giờ xem, top phim, top thể loại, streak ngày. Kiểu Spotify Wrapped cho phim
+
+## � Interaction (v1.20+)
+- [ ] #IA-1  **Long Press Context Menu** — Long press poster bất kỳ → rich menu nổi: ▶️ Play / 🔖 Watchlist / ❤️ Favorite / 📋 Add Playlist / 🚫 Ẩn. 1 điểm làm mọi thứ
+- [ ] #IA-2  **Swipe Card Actions** — Continue Watching: swipe trái = "Đã xem xong, ẩn". Swipe phải = "Pin lên đầu". Quản lý nhanh không cần menu
+
+## �💎 Cá Nhân Hoá (v1.20+)
+- [ ] #CN-1  **Custom Home Layout** — Chọn style Home: Card lớn (1 cột poster to) / Grid chặt (3 cột) / List (info text). Tuỳ gu nhìn
+- [ ] #CN-2  **"My Theater" Splash** — Splash screen custom: tên riêng ("Raiden's Theater 🎬") + quote phim ngẫu nhiên. Cảm giác mở rạp riêng
+- [ ] #CN-3  **Poster Art Mode** — Trong Watchlist/Favorites: toggle "Gallery" — poster full-width, không text/badge, chỉ ảnh. Bộ sưu tập tranh
+
 ## 🗑️ Tech Debt
+### 🔴 P0 — Blocking
 - [x] #TD-1 **Xóa Extractor folder** — đã xóa 11MB Node.js dead code ở root project
-- [ ] #TD-2 **Room DB migration** — thay SharedPreferences bằng Room DB cho WatchHistory + Favorites (query nhanh hơn, type-safe)
+- [ ] #TD-2 **Room DB migration** — thay SharedPreferences bằng Room DB cho WatchHistory + Favorites + tất cả Managers (query nhanh, type-safe, ko parse JSON trên main thread)
 - [x] #TD-3 **Coil cache tuning** — 200MB disk cache + 50MB memory cache + hardware bitmaps (GPU) trong `App.kt`
+- [ ] #TD-4 **God Screen Split** — PlayerScreen (1298L), DetailScreen (827L), HomeScreen (798L), SearchScreen (538L) tách thành Screen + ViewModel + Components riêng. Unblock mọi feature mới
+### 🟡 P1 — Important
+- [ ] #TD-5 **Hilt DI** — Thay 8 `object + init(context)` singleton bằng Hilt @Inject. ViewModel dùng @HiltViewModel. Testable + clean
+- [ ] #TD-7 **Error Handling Strategy** — Phân biệt NetworkError/ApiError/ParseError. Retry chỉ cho network. Thêm Crashlytics free tier cho release build
+- [ ] #TD-9 **Offline Mode** — Cache last-loaded Home data vào Room. Mất mạng → hiện data cũ + banner "Đang offline". Continue Watching vẫn hoạt động
+### 🟢 P2 — Nice to have
+- [ ] #TD-8  **API Key Security** — Move TMDB/OMDB key sang local.properties + BuildConfig. Không hardcode trong source
+- [ ] #TD-10 **ProGuard Precision** — Thay `-keep class **$* { *; }` bằng rules chính xác cho data/api/models + data/local. APK nhỏ hơn
+- [ ] #TD-11 **Compose Recomposition** — `remember` callbacks, `@Stable` annotations cho data class, `derivedStateOf` cho computed state. Giảm unnecessary recomposition
+- [ ] #TD-12 **KotlinX Serialization** — Thay Gson bằng kotlinx-serialization. Compile-time safe, nhanh hơn ~30%, nhẹ hơn ~300KB
+- [ ] #TD-13 **Gradle Multi-Module** — Split app thành :core, :data, :player, :ui modules. Parallel build + incremental compile
+

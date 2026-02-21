@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,109 +46,20 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import xyz.raidenhub.phim.data.api.models.Episode
-import xyz.raidenhub.phim.data.api.models.EpisodeServer
 import xyz.raidenhub.phim.data.local.SettingsManager
-import xyz.raidenhub.phim.data.repository.AnimeRepository
-import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.Constants
-import xyz.raidenhub.phim.util.TextUtils
-
-class PlayerViewModel : ViewModel() {
-    private val _episodes = MutableStateFlow<List<Episode>>(emptyList())
-    val episodes = _episodes.asStateFlow()
-    private val _title = MutableStateFlow("")
-    val title = _title.asStateFlow()
-    private val _currentEp = MutableStateFlow(0)
-    val currentEp = _currentEp.asStateFlow()
-
-    // Country/Type-aware auto-next
-    private val _autoNextMs = MutableStateFlow(Constants.AUTO_NEXT_BEFORE_END_MS)
-    val autoNextMs = _autoNextMs.asStateFlow()
-    private val _country = MutableStateFlow("")
-    val country = _country.asStateFlow()
-    private var _type = ""
-
-    fun load(slug: String, serverIdx: Int, epIdx: Int) {
-        viewModelScope.launch {
-            MovieRepository.getMovieDetail(slug)
-                .onSuccess { result ->
-                    _title.value = result.movie.name
-                    val eps = result.episodes.getOrNull(serverIdx)?.serverData.orEmpty()
-                    _episodes.value = eps
-                    _currentEp.value = epIdx.coerceIn(0, (eps.size - 1).coerceAtLeast(0))
-                    // Detect country + type for smart timing
-                    _country.value = result.movie.country.firstOrNull()?.slug ?: ""
-                    _type = result.movie.type
-                    _autoNextMs.value = Constants.getAutoNextMs(_country.value, _type)
-                }
-        }
-    }
-
-    fun setEpisode(idx: Int) { _currentEp.value = idx }
-    fun hasNext() = _currentEp.value < _episodes.value.size - 1
-    fun nextEp() { if (hasNext()) _currentEp.value++ }
-
-    /**
-     * Hướng B — Anime47 source:
-     * episodeIds = danh sách ID của tất cả tập (từ latestEpisodes)
-     * epIdx      = index tập muốn phát
-     *
-     * Flow: fetch tập đang chọn → bestStreamUrl → build Episode list
-     * Tập kế: fetch on-demand khi user nhấn next
-     */
-    fun loadAnime47(episodeIds: IntArray, epIdx: Int, animeTitle: String = "") {
-        viewModelScope.launch {
-            _title.value = animeTitle
-            val safeIdx = epIdx.coerceIn(0, (episodeIds.size - 1).coerceAtLeast(0))
-            _currentEp.value = safeIdx
-            // Build Episode placeholder list với id encoded vào slug (fetch lazy)
-            // Format slug: "anime47::{episodeId}" để PlayerScreen biết cách fetch
-            val placeholders = episodeIds.mapIndexed { i, id ->
-                Episode(
-                    name     = "Tập ${i + 1}",
-                    slug     = "anime47::$id",
-                    linkEmbed = "",
-                    linkM3u8  = ""  // sẽ fetch khi play
-                )
-            }
-            _episodes.value = placeholders
-            // Fetch ngay stream cho tập hiện tại
-            fetchAnime47Stream(episodeIds[safeIdx])
-        }
-    }
-
-    /** Fetch M3U8 cho episode id, update episode trong list */
-    fun fetchAnime47Stream(episodeId: Int) {
-        viewModelScope.launch {
-            AnimeRepository.getEpisodeStream(episodeId)
-                .onSuccess { stream ->
-                    val url = stream.bestStreamUrl
-                    // Update placeholder → real M3U8
-                    _episodes.value = _episodes.value.map { ep ->
-                        if (ep.slug == "anime47::$episodeId") ep.copy(linkM3u8 = url) else ep
-                    }
-                }
-        }
-    }
-}
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -721,7 +634,7 @@ fun PlayerScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
-                            Icons.Default.VolumeUp,
+                            Icons.AutoMirrored.Filled.VolumeUp,
                             "Volume",
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
@@ -775,7 +688,7 @@ fun PlayerScreen(
                             modifier = Modifier
                                 .size(76.dp)
                                 .background(
-                                    brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                                    brush = Brush.radialGradient(
                                         colors = listOf(
                                             C.Primary.copy(0.7f),
                                             C.PrimaryDark.copy(0.4f),
@@ -916,7 +829,7 @@ fun PlayerScreen(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
                                         Icon(
-                                            Icons.Default.ViewList,
+                                            Icons.AutoMirrored.Filled.ViewList,
                                             "Episodes",
                                             tint = Color.White,
                                             modifier = Modifier.size(18.dp)
@@ -1004,7 +917,7 @@ fun PlayerScreen(
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.VolumeUp,
+                        Icons.AutoMirrored.Filled.VolumeUp,
                         "Volume", tint = Color.White, modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.height(4.dp))
@@ -1285,13 +1198,4 @@ fun PlayerScreen(
             }
         }
     }
-}
-
-private fun formatTime(ms: Long): String {
-    val totalSec = ms / 1000
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s)
-    else "%d:%02d".format(m, s)
 }

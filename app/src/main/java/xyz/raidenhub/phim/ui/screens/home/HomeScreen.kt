@@ -1,24 +1,14 @@
 package xyz.raidenhub.phim.ui.screens.home
 
 import android.widget.Toast
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,10 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -41,13 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.local.FavoriteManager
@@ -55,34 +39,9 @@ import xyz.raidenhub.phim.data.local.HeroFilterManager
 import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
-import xyz.raidenhub.phim.data.repository.MovieRepository
-import xyz.raidenhub.phim.ui.components.MovieCard
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
-import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
-
-class HomeViewModel : ViewModel() {
-    private val _state = MutableStateFlow<HomeState>(HomeState.Loading)
-    val state = _state.asStateFlow()
-
-    init { load() }
-
-    fun load() {
-        viewModelScope.launch {
-            _state.value = HomeState.Loading
-            MovieRepository.getHomeData()
-                .onSuccess { _state.value = HomeState.Success(it) }
-                .onFailure { _state.value = HomeState.Error(it.message ?: "Unknown error") }
-        }
-    }
-}
-
-sealed class HomeState {
-    data object Loading : HomeState()
-    data class Success(val data: MovieRepository.HomeData) : HomeState()
-    data class Error(val message: String) : HomeState()
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -268,7 +227,7 @@ fun HomeScreen(
                                                     onContinue(item.slug, item.server, item.episode, item.positionMs)
                                                 },
                                                 onLongClick = {
-                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                                                     WatchHistoryManager.removeContinue(item.slug)
                                                     Toast.makeText(context, "🗑 Đã xoá", Toast.LENGTH_SHORT).show()
                                                 }
@@ -511,287 +470,3 @@ fun HomeScreen(
         }
     }
 }
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun HeroCarousel(
-    movies: List<Movie>,
-    onMovieClick: (String) -> Unit,
-    onHideMovie: ((String) -> Unit)? = null  // H-1: callback ẩn phim khỏi carousel
-) {
-    if (movies.isEmpty()) return
-    val pagerState = rememberPagerState(pageCount = { movies.size })
-
-    // Auto-scroll every 5s
-    LaunchedEffect(pagerState) {
-        while (true) {
-            delay(5000)
-            val next = (pagerState.currentPage + 1) % movies.size
-            pagerState.animateScrollToPage(next)
-        }
-    }
-
-    Box {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxWidth().height(280.dp)
-        ) { page ->
-            val movie = movies[page]
-
-            // Ken Burns: slow zoom 1.0→1.15 over 10s
-            val kenBurnsScale = remember { Animatable(1f) }
-            val kenBurnsX = remember { Animatable(0f) }
-            val kenBurnsY = remember { Animatable(0f) }
-
-            LaunchedEffect(page, pagerState.currentPage) {
-                if (page == pagerState.currentPage) {
-                    // Reset
-                    kenBurnsScale.snapTo(1f)
-                    kenBurnsX.snapTo(0f)
-                    kenBurnsY.snapTo(0f)
-                    // Animate zoom + subtle pan
-                    launch {
-                        kenBurnsScale.animateTo(
-                            1.15f,
-                            animationSpec = tween(durationMillis = 10000, easing = LinearEasing)
-                        )
-                    }
-                    launch {
-                        kenBurnsX.animateTo(
-                            if (page % 2 == 0) 15f else -15f,
-                            animationSpec = tween(durationMillis = 10000, easing = LinearEasing)
-                        )
-                    }
-                    launch {
-                        kenBurnsY.animateTo(
-                            if (page % 3 == 0) -8f else 8f,
-                            animationSpec = tween(durationMillis = 10000, easing = LinearEasing)
-                        )
-                    }
-                }
-            }
-
-            // H-1: Dropdown state per slide
-            var showMenu by remember { mutableStateOf(false) }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clipToBounds()
-                    .combinedClickable(
-                        onClick = { onMovieClick(movie.slug) },
-                        onLongClick = {
-                            if (onHideMovie != null) showMenu = true
-                        }
-                    )
-            ) {
-                AsyncImage(
-                    model = ImageUtils.heroImage(movie.posterUrl.ifBlank { movie.thumbUrl }, movie.source),
-                    contentDescription = movie.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = kenBurnsScale.value
-                            scaleY = kenBurnsScale.value
-                            translationX = kenBurnsX.value
-                            translationY = kenBurnsY.value
-                        }
-                )
-                // Gradient
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(
-                            colors = listOf(C.HeroGradientTop, C.HeroGradientBottom),
-                            startY = 80f
-                        ))
-                )
-                // Content
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(16.dp)
-                ) {
-                    Text("🔥 Phim Nổi Bật", color = C.Primary, fontFamily = JakartaFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(movie.name, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    ) {
-                        if (movie.quality.isNotBlank()) Text(movie.quality, color = C.Accent, fontSize = 12.sp)
-                        if (movie.year > 0) Text("${movie.year}", color = C.TextSecondary, fontSize = 12.sp)
-                        if (movie.country.isNotEmpty()) Text(movie.country.first().name, color = C.TextSecondary, fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    // "Xem Ngay" button
-                    Button(
-                        onClick = { onMovieClick(movie.slug) },
-                        colors = ButtonDefaults.buttonColors(containerColor = C.Primary),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                        modifier = Modifier.height(36.dp)
-                    ) {
-                        Icon(Icons.Default.PlayArrow, "Play", tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Xem Ngay", fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                // H-1: Context menu khi long press
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("🚫 Bỏ qua phim này") },
-                        onClick = {
-                            showMenu = false
-                            onHideMovie?.invoke(movie.slug)
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("🔍 Xem chi tiết") },
-                        onClick = {
-                            showMenu = false
-                            onMovieClick(movie.slug)
-                        }
-                    )
-                }
-            }
-
-        }
-
-        // Page indicator dots
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            repeat(movies.size) { idx ->
-                Box(
-                    modifier = Modifier
-                        .size(if (idx == pagerState.currentPage) 8.dp else 6.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (idx == pagerState.currentPage) C.Primary else Color.White.copy(0.5f)
-                        )
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun MovieRowSection(
-    title: String,
-    movies: List<Movie>,
-    onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long) -> Unit,
-    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    onSeeMore: () -> Unit
-) {
-    if (movies.isEmpty()) return
-
-    Column(modifier = Modifier.padding(top = 16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Xem thêm →", color = C.Primary, fontFamily = InterFamily, fontSize = 13.sp,
-                modifier = Modifier.clickable(onClick = onSeeMore))
-        }
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(movies.take(12), key = { it.slug }) { movie ->
-                // H-7: Long press → Quick Play từ đầu (positionMs = 0)
-                Box(modifier = Modifier.width(130.dp)) {
-                    MovieCard(
-                        movie = movie,
-                        onClick = { onMovieClick(movie.slug) },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onContinue(movie.slug, 0, 0, 0L)
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-    }
-}
-
-// #2 — Shimmer skeleton loading
-@Composable
-private fun ShimmerHomeScreen() {
-    val shimmerColor = C.Surface
-    val shimmerHighlight = C.SurfaceVariant
-
-    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
-    val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.3f,
-        targetValue = 0.8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "shimmer_alpha"
-    )
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(C.Background),
-        contentPadding = PaddingValues(bottom = 80.dp)
-    ) {
-        // Hero shimmer
-        item {
-            Box(
-                Modifier.fillMaxWidth().height(280.dp)
-                    .background(shimmerColor.copy(alpha))
-            )
-        }
-        // Greeting shimmer
-        item {
-            Box(
-                Modifier.padding(16.dp).width(200.dp).height(24.dp)
-                    .background(shimmerColor.copy(alpha), RoundedCornerShape(8.dp))
-            )
-        }
-        // Movie row shimmers (3 rows)
-        items(3) {
-            Column(Modifier.padding(top = 16.dp)) {
-                Box(
-                    Modifier.padding(horizontal = 12.dp).width(150.dp).height(20.dp)
-                        .background(shimmerColor.copy(alpha), RoundedCornerShape(4.dp))
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    repeat(4) {
-                        Column(Modifier.width(130.dp)) {
-                            Box(
-                                Modifier.fillMaxWidth().aspectRatio(2f / 3f)
-                                    .background(shimmerColor.copy(alpha), RoundedCornerShape(8.dp))
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Box(
-                                Modifier.fillMaxWidth().height(14.dp)
-                                    .background(shimmerColor.copy(alpha), RoundedCornerShape(4.dp))
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-

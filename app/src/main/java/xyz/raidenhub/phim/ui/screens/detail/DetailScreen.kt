@@ -1,7 +1,5 @@
 package xyz.raidenhub.phim.ui.screens.detail
 
-import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -13,9 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -38,81 +33,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import xyz.raidenhub.phim.data.api.models.EpisodeServer
 import xyz.raidenhub.phim.data.api.models.Movie
-import xyz.raidenhub.phim.data.api.models.MovieDetail
-import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
+import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.ShimmerDetailScreen
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
 import xyz.raidenhub.phim.util.TextUtils
-import androidx.palette.graphics.Palette
-import coil3.ImageLoader
-import coil3.request.ImageRequest
-import coil3.request.SuccessResult
-import coil3.toBitmap
-
-class DetailViewModel : ViewModel() {
-    private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
-    val state = _state.asStateFlow()
-
-    fun load(slug: String) {
-        viewModelScope.launch {
-            _state.value = DetailState.Loading
-            MovieRepository.getMovieDetail(slug)
-                .onSuccess { _state.value = DetailState.Success(it.movie, it.episodes) }
-                .onFailure { _state.value = DetailState.Error(it.message ?: "Error") }
-        }
-    }
-}
-
-sealed class DetailState {
-    data object Loading : DetailState()
-    data class Success(val movie: MovieDetail, val episodes: List<EpisodeServer>) : DetailState()
-    data class Error(val message: String) : DetailState()
-}
-
-// A-8: Dynamic Color extraction from poster
-@Composable
-private fun rememberDominantColor(imageUrl: String): Color {
-    var dominantColor by remember { mutableStateOf(C.Primary) }
-    val context = LocalContext.current
-    LaunchedEffect(imageUrl) {
-        try {
-            val loader = ImageLoader(context)
-            val request = ImageRequest.Builder(context)
-                .data(imageUrl)
-                .size(128) // small for speed
-                .build()
-            val result = loader.execute(request)
-            if (result is SuccessResult) {
-                val bitmap = result.image.toBitmap()
-                val palette = Palette.from(bitmap).generate()
-                val swatch = palette.vibrantSwatch
-                    ?: palette.dominantSwatch
-                    ?: palette.mutedSwatch
-                swatch?.let { dominantColor = Color(it.rgb) }
-            }
-        } catch (_: Exception) { /* fallback to C.Primary */ }
-    }
-    return dominantColor
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -799,7 +737,7 @@ fun DetailScreen(
                                         Text(pl.name, color = C.TextPrimary, fontSize = 15.sp)
                                         Text(if (inList) "✓" else "+", color = if (inList) C.Primary else C.TextSecondary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                                     }
-                                    Divider(color = C.SurfaceVariant, thickness = 0.5.dp)
+                                    HorizontalDivider(color = C.SurfaceVariant, thickness = 0.5.dp)
                                 }
                             }
                         }
@@ -815,12 +753,3 @@ fun DetailScreen(
         } // end DetailState.Success
     } // end when
 } // end DetailScreen
-
-@Composable
-private fun Badge3(text: String, color: Color) {
-    Text(text, color = C.TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier.background(color.copy(0.85f), RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 3.dp))
-}
-
-private val C.Badge get() = Color(0xFF2196F3)
-

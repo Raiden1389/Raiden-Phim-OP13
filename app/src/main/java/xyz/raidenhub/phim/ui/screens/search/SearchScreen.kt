@@ -1,7 +1,6 @@
 package xyz.raidenhub.phim.ui.screens.search
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,154 +26,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import xyz.raidenhub.phim.data.api.models.Movie
-import xyz.raidenhub.phim.data.repository.MovieRepository
+import xyz.raidenhub.phim.data.local.SearchHistoryManager
 import xyz.raidenhub.phim.ui.components.MovieCard
 import xyz.raidenhub.phim.ui.components.EmptyStateView
 import xyz.raidenhub.phim.ui.components.ShimmerGrid
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
-import xyz.raidenhub.phim.ui.theme.InterFamily
-
-// ═══ Search History Manager ═══
-object SearchHistoryManager {
-    private const val PREF_NAME = "search_history"
-    private const val KEY = "recent"
-    private const val MAX_ITEMS = 15
-
-    private val _history = MutableStateFlow<List<String>>(emptyList())
-    val history = _history.asStateFlow()
-
-    fun init(context: Context) {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        _history.value = prefs.getString(KEY, null)?.split("|||")?.filter { it.isNotBlank() } ?: emptyList()
-    }
-
-    fun add(query: String, context: Context) {
-        if (query.isBlank() || query.length < 2) return
-        val current = _history.value.toMutableList()
-        current.remove(query)
-        current.add(0, query.trim())
-        val trimmed = current.take(MAX_ITEMS)
-        _history.value = trimmed
-        save(context, trimmed)
-    }
-
-    fun remove(query: String, context: Context) {
-        val current = _history.value.toMutableList()
-        current.remove(query)
-        _history.value = current
-        save(context, current)
-    }
-
-    fun clearAll(context: Context) {
-        _history.value = emptyList()
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().clear().apply()
-    }
-
-    private fun save(context: Context, items: List<String>) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY, items.joinToString("|||")).apply()
-    }
-}
-
-// ═══ S-3: Smart Keyword Normalization ═══
-private val KEYWORD_MAP = mapOf(
-    // Country variants
-    "han quoc" to "Hàn Quốc", "han" to "Hàn Quốc",
-    "trung quoc" to "Trung Quốc", "trung" to "Trung Quốc",
-    "my" to "Mỹ", "nhat" to "Nhật Bản", "nhat ban" to "Nhật Bản",
-    "thai" to "Thái Lan", "thai lan" to "Thái Lan",
-    "anh" to "Anh", "phap" to "Pháp", "duc" to "Đức",
-    // Genre shorthand
-    "kinh di" to "Kinh dị",
-    "hanh dong" to "Hành động",
-    "tinh cam" to "Tình cảm", "lam ly" to "Lãng mạn",
-    "vien tuong" to "Viễn tưởng", "sci fi" to "Viễn tưởng",
-    "hoat hinh" to "Hoạt hình",
-    "co trang" to "Cổ trang", "vo thuat" to "Võ thuật",
-    "hai huoc" to "Hài hước",
-    "gia dinh" to "Gia đình", "tam ly" to "Tâm lý",
-    "phieu luu" to "Phiêu lưu", "chien tranh" to "Chiến tranh",
-)
-
-fun normalizeKeyword(raw: String): String {
-    val lower = raw.trim().lowercase()
-    return KEYWORD_MAP[lower] ?: raw.trim()
-}
-
-class SearchViewModel : ViewModel() {
-    private val _results = MutableStateFlow<List<Movie>>(emptyList())
-    val results = _results.asStateFlow()
-    private val _loading = MutableStateFlow(false)
-    val loading = _loading.asStateFlow()
-
-    // #13 — Search suggestions (live autocomplete from history + trending)
-    private val _suggestions = MutableStateFlow<List<String>>(emptyList())
-    val suggestions = _suggestions.asStateFlow()
-
-    private var searchJob: Job? = null
-
-    fun search(query: String) {
-        searchJob?.cancel()
-        updateSuggestions(query)
-        if (query.length < 2) { _results.value = emptyList(); return }
-        searchJob = viewModelScope.launch {
-            delay(400) // debounce
-            _loading.value = true
-            MovieRepository.search(query)
-                .onSuccess { _results.value = it }
-                .onFailure { _results.value = emptyList() }
-            _loading.value = false
-        }
-    }
-
-    private fun updateSuggestions(query: String) {
-        if (query.length < 2) { _suggestions.value = emptyList(); return }
-        val q = query.lowercase()
-        val history = SearchHistoryManager.history.value
-        val trending = TRENDING_KEYWORDS
-
-        // Combine history + trending, filter by prefix match
-        val combined = (history + trending)
-            .filter { it.lowercase().contains(q) && it.lowercase() != q }
-            .distinct()
-            .take(5)
-        _suggestions.value = combined
-    }
-}
-
-// ═══ Trending / Suggested Keywords ═══
-private val TRENDING_KEYWORDS = listOf(
-    "Hành động", "Tình cảm", "Kinh dị", "Hoạt hình",
-    "Võ thuật", "Hài hước", "Phiêu lưu", "Ma",
-    "Chiến tranh", "Viễn tưởng", "Siêu anh hùng", "Thám tử",
-    "Cổ trang", "Anime", "Gia đình", "Lãng mạn"
-)
-
-// S-2: Genre Quick Search chips
-private val GENRE_CHIPS = listOf(
-    "hanh-dong" to "🥊 Hành động", "tinh-cam" to "💖 Tình cảm",
-    "kinh-di" to "👻 Kinh dị", "hoat-hinh" to "🎠 Hoạt hình",
-    "hai-huoc" to "😂 Hài", "vien-tuong" to "🚀 Viễn tưởng",
-    "co-trang" to "🏯 Cổ trang", "vo-thuat" to "🥋 Võ thuật",
-    "phieu-luu" to "🏔️ Phiêu lưu", "gia-dinh" to "🏠 Gia đình",
-)
-
-// S-4: Sort options
-enum class SearchSort(val label: String) {
-    NEWEST("🕒 Mới nhất"),
-    OLDEST("📋 Cũ nhất"),
-    AZ("🔤 Tên A-Z")
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
