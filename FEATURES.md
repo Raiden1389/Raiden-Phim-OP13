@@ -1,6 +1,6 @@
 # 🎬 RaidenPhim — Tính Năng
 
-> **Phiên bản:** v1.16.0 · **Build:** 49 · **Cập nhật:** 2026-02-20
+> **Phiên bản:** v1.18.0 · **Build:** 52 · **Cập nhật:** 2026-02-21
 
 ---
 
@@ -41,20 +41,22 @@
 
 | Tính năng | Mô tả |
 |-----------|-------|
-| 🖼️ **Backdrop HD** | Ảnh nền full-width từ poster URL với gradient overlay |
+| 🖼️ **Parallax Backdrop** | Poster cuộn parallax 0.5x speed với scale-up depth, fade-out, gradient overlay cinematic |
+| 🎨 **Dynamic Color** | Trích xuất dominant color từ poster → tint nút Play + badge chất lượng, animated transition |
+| ✨ **Entrance Animation** | Fade + scale animation khi mở Detail — hiệu ứng card → full-screen |
 | ⭐ **IMDb Rating** | Điểm số thực từ OMDB API (nếu phim có trên IMDb) |
 | 🍅 **TMDB Rating** | Điểm số từ TMDB API, hiển thị song song với IMDb |
 | 📖 **Mô tả mở rộng** | Giới hạn 4 dòng, gradient fade khi thu gọn, tap "Xem thêm ▼" để expand |
 | 🏷️ **Badge thông tin** | Năm / Quốc gia / Thể loại / Chất lượng |
-| 🎭 **Diễn viên & Đạo diễn** | Horizontal scroll với avatar và tên |
+| 🎭 **Diễn viên** | Ảnh diễn viên thật từ TMDB Credits API, circular crop, fallback emoji |
 | 📺 **Chọn Server** | Dropdown chọn nguồn phát (nhiều server dự phòng) |
 | 🔀 **Sắp xếp tập** | Toggle 1→N / N→1 cho phim nhiều tập |
 | 📊 **Episode Progress** | Progress bar trên nút tập đã xem |
 | ▶️ **Tiếp tục xem** | Nút "Xem tiếp từ Tập X" nếu đang xem dở |
 | 📋 **Season Grouping** | Phát hiện phim nhiều mùa (Phần 1/2/3), horizontal selector |
-| � **Xem Sau (Watchlist)** | Nút bookmark để lưu vào danh sách Xem Sau |
+| 🔖 **Xem Sau (Watchlist)** | Nút bookmark để lưu vào danh sách Xem Sau |
 | ➕ **Thêm vào Playlist** | Chọn playlist thủ công để thêm phim |
-| �️ **Phim liên quan** | Row "Có thể bạn thích" — phim cùng thể loại |
+| 🗂️ **Phim liên quan** | Row "Có thể bạn thích" — phim cùng thể loại |
 
 ---
 
@@ -63,6 +65,8 @@
 | Tính năng | Mô tả |
 |-----------|-------|
 | 🎥 **Fullscreen native** | Separate Activity, không conflict với navigation bars |
+| 🎬 **Gradient Scrims** | Top/bottom gradient overlay cho controls — cảm giác cinematic premium |
+| 📋 **Episode Bottom Sheet** | Nút "Tập X" mở ModalBottomSheet grid tất cả tập, dark theme |
 | ⏮️⏭️ **Tập Trước / Tiếp** | Nút chuyển tập ngay trong player |
 | ⏩ **Auto-play next** | Tự động chuyển tập tiếp theo sau khi kết thúc (bật/tắt trong Settings) |
 | 👆 **Gesture seek** | Double-tap trái/phải ±10 giây |
@@ -154,10 +158,9 @@
 - **#P-1** Subtitle Style (font, size, màu, opacity)
 - **#P-2** Subtitle Position (slider Y)
 - **#S-5** Dynamic Trending — từ khóa trending tính từ search history aggregate
-- **#H-1** Hero Carousel Filter — long press → "Bỏ qua phim này"
-- **#H-6** Reorder Home Sections (drag-drop)
 - **#TD-1** Xóa Extractor folder (giảm ~11MB APK)
 - **#TD-2** Room DB (thay SharedPreferences cho history/favorites)
+- **#B-3** Shared Element Transition (full Navigation 2.8+ API)
 
 ---
 

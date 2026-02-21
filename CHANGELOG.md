@@ -1,6 +1,6 @@
 # Raiden Phim — Changelog
 
-## v1.18.0 — 2026-02-21 (Anime Player & Genre Browse)
+## v1.18.0 — 2026-02-21 (Anime Player & Genre Browse & UI Premium)
 
 ### ✨ New Features
 
@@ -14,6 +14,23 @@
 - **Fallback tự động** — Nếu endpoint `/anime/list?genre=` chưa có → tự fallback về keyword search, không bị crash
 - **Hiển thị 30 thể loại** — Tăng từ 20 → 30 genre chips hiển thị
 
+#### 🎨 Detail Screen — UI Premium
+- **A-6: Parallax Backdrop** — Poster cuộn parallax 0.5x speed, scale-up depth effect, fade-out khi scroll. Gradient overlay cinematic + glass back button
+- **A-8: Dynamic Color** — Trích xuất dominant color từ poster qua AndroidX Palette → tint nút Play + badge chất lượng. Animated color transition mượt mà
+- **B-3: Entrance Animation** — Fade (0→1) + scale (0.95→1.0) với `FastOutSlowInEasing` khi mở Detail — tạo hiệu ứng card → full-screen
+- **🎭 Actor Photos (TMDB)** — Gọi TMDB Credits API lấy ảnh diễn viên thật thay emoji 👤. Match tên exact → fallback theo vị trí index. AsyncImage với circular crop
+
+#### ▶️ Player — UI Premium
+- **B-5: Gradient Scrims** — Top/bottom gradient overlay cho player controls, tạo cảm giác cinematic. JakartaFamily cho title, InterFamily cho time
+- **B-7: Episode Bottom Sheet** — Nút "Tập X" → ModalBottomSheet hiện grid tất cả tập. Dark theme, highlight tập đang xem, dismiss khi chọn
+
+#### ✨ UI/UX Polish — 10 Items
+- **S-1: Typography** — Áp dụng JakartaFamily (headers/titles) + InterFamily (body/time) xuyên suốt app
+- **S-4: Micro-interactions** — Bounce, pulse, scale animations cho các interactive elements
+- **A-2: Glassmorphism Bottom Nav** — Bottom navigation bar với hiệu ứng glass blur
+- **C-9: Search Empty State** — Giao diện empty state đẹp mắt khi chưa tìm kiếm
+- **C-10: Settings Visual** — Cải thiện giao diện Settings screen
+
 ### 🐛 Bug Fix
 - **Anime player crash** — Root cause: `PlayerViewModel.load(animeSlug)` → KKPhim API → slug không tồn tại → parse fail → "ARRAY OBJECT" error. Fixed bằng source routing riêng biệt
 
@@ -22,10 +39,12 @@
 - **`Anime47Api.kt`** — Thêm `getEpisodeStream(id)`, `getAnimeByGenre(slug, page)`, `getAnimeByCategory(category, page)`
 - **`AnimeRepository.kt`** — Thêm `getEpisodeStream(episodeId)`, `getAnimeByGenre(slug, name)` với double-fallback
 - **`PlayerViewModel`** — Thêm `loadAnime47(episodeIds, epIdx, title)`, `fetchAnime47Stream(id)`. Episode placeholder format: `slug = "anime47::{id}"` để lazy-fetch
-- **`PlayerScreen`** — Thêm params `source`, `episodeIds`, `animeTitle`. `LaunchedEffect` branch theo source. Pre-fetch next ep khi episodeList thay đổi
+- **`PlayerScreen`** — Thêm params `source`, `episodeIds`, `animeTitle`. Gradient scrims, episode bottom sheet, typography polish. `LaunchedEffect` branch theo source
 - **`PlayerActivity`** — Đọc thêm extras: `source`, `episodeIds` (IntArray), `animeTitle`
+- **`DetailScreen`** — Parallax scroll (`graphicsLayer`), dynamic color (`Palette + animateColorAsState`), entrance animation (`Animatable`), TMDB cast photos
 - **`AnimeDetailScreen`** — Thay `onPlay(slug, server, ep)` → `onPlayAnime47(episodeIds, epIdx, title)`. Build `episodeIds` IntArray từ `latestEpisodes.map { it.id }`
 - **`AppNavigation`** — Thêm `startAnime47PlayerActivity()` helper, pass `source="kkphim"` cho KKPhim flow
+- **Dependency** — Thêm `androidx.palette:palette-ktx:1.0.0`
 
 ---
 

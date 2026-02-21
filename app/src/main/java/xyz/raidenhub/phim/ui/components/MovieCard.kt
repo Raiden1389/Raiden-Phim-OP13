@@ -1,9 +1,11 @@
 package xyz.raidenhub.phim.ui.components
 
 import android.widget.Toast
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,9 +15,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -26,6 +30,7 @@ import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
 import xyz.raidenhub.phim.util.TextUtils
 
@@ -41,10 +46,25 @@ fun MovieCard(
     val favorites by FavoriteManager.favorites.collectAsState()
     val isFav = favorites.any { it.slug == movie.slug }
 
+    // ═══ Press scale animation — Netflix-style ═══
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
+        label = "card_press"
+    )
+
     Column(
         modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(8.dp))
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick ?: {
                     val added = FavoriteManager.toggle(movie.slug, movie.name, movie.thumbUrl)
@@ -93,8 +113,18 @@ fun MovieCard(
                 )
             }
 
-            // Favorite heart indicator
+            // Favorite heart indicator — pulse animation
             if (isFav) {
+                val pulse = rememberInfiniteTransition(label = "fav_pulse")
+                val heartScale by pulse.animateFloat(
+                    initialValue = 1f,
+                    targetValue = 1.2f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(600, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "heart_scale"
+                )
                 Icon(
                     Icons.Default.Favorite,
                     "Favorited",
@@ -103,6 +133,10 @@ fun MovieCard(
                         .align(Alignment.TopEnd)
                         .padding(6.dp)
                         .size(18.dp)
+                        .graphicsLayer {
+                            scaleX = heartScale
+                            scaleY = heartScale
+                        }
                 )
             }
 
@@ -121,6 +155,7 @@ fun MovieCard(
         Text(
             text = movie.name,
             color = C.TextPrimary,
+            fontFamily = InterFamily,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
             maxLines = 2,
@@ -129,9 +164,9 @@ fun MovieCard(
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (movie.year > 0) Text("${movie.year}", color = C.TextSecondary, fontSize = 11.sp)
+            if (movie.year > 0) Text("${movie.year}", color = C.TextSecondary, fontFamily = InterFamily, fontSize = 11.sp)
             if (movie.country.isNotEmpty()) {
-                Text("• ${movie.country.first().name}", color = C.TextSecondary, fontSize = 11.sp, maxLines = 1)
+                Text("• ${movie.country.first().name}", color = C.TextSecondary, fontFamily = InterFamily, fontSize = 11.sp, maxLines = 1)
             }
         }
     }

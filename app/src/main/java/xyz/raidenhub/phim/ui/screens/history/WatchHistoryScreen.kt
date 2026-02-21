@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.util.ImageUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,7 +42,7 @@ fun WatchHistoryScreen(
     ) {
         // Top Bar
         TopAppBar(
-            title = { Text("📜 Lịch sử xem", color = C.TextPrimary, fontWeight = FontWeight.Bold) },
+            title = { Text("📜 Lịch sử xem", color = C.TextPrimary, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = C.TextPrimary)

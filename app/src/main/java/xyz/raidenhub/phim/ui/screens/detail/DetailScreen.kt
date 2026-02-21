@@ -1,9 +1,16 @@
 package xyz.raidenhub.phim.ui.screens.detail
 
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -22,8 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,8 +57,15 @@ import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
 import xyz.raidenhub.phim.util.TextUtils
+import androidx.palette.graphics.Palette
+import coil3.ImageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.toBitmap
 
 class DetailViewModel : ViewModel() {
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
@@ -67,6 +85,32 @@ sealed class DetailState {
     data object Loading : DetailState()
     data class Success(val movie: MovieDetail, val episodes: List<EpisodeServer>) : DetailState()
     data class Error(val message: String) : DetailState()
+}
+
+// A-8: Dynamic Color extraction from poster
+@Composable
+private fun rememberDominantColor(imageUrl: String): Color {
+    var dominantColor by remember { mutableStateOf(C.Primary) }
+    val context = LocalContext.current
+    LaunchedEffect(imageUrl) {
+        try {
+            val loader = ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(imageUrl)
+                .size(128) // small for speed
+                .build()
+            val result = loader.execute(request)
+            if (result is SuccessResult) {
+                val bitmap = result.image.toBitmap()
+                val palette = Palette.from(bitmap).generate()
+                val swatch = palette.vibrantSwatch
+                    ?: palette.dominantSwatch
+                    ?: palette.mutedSwatch
+                swatch?.let { dominantColor = Color(it.rgb) }
+            }
+        } catch (_: Exception) { /* fallback to C.Primary */ }
+    }
+    return dominantColor
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -97,9 +141,28 @@ fun DetailScreen(
             }
         }
         is DetailState.Success -> {
+            // B-3: Entrance animation (card → full-screen feel)
+            val enterAlpha = remember { Animatable(0f) }
+            val enterScale = remember { Animatable(0.95f) }
+            LaunchedEffect(Unit) {
+                launch {
+                    enterAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
+                }
+                launch {
+                    enterScale.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
+                }
+            }
             val movie = s.movie
             val episodes = s.episodes
             var selectedServer by remember { mutableIntStateOf(0) }
+            // A-8: Dynamic accent color from poster
+            val posterUrl = movie.posterUrl.ifBlank { movie.thumbUrl }
+            val rawDominant = rememberDominantColor(ImageUtils.detailImage(posterUrl))
+            val accentColor by animateColorAsState(
+                targetValue = rawDominant,
+                animationSpec = tween(600),
+                label = "accent_color"
+            )
             val isFav = favorites.any { it.slug == slug }
             val watchedSet = watchedMap[slug] ?: emptySet()
             // C-4: Watchlist state
@@ -120,6 +183,8 @@ fun DetailScreen(
             var imdbRating by remember { mutableStateOf<String?>(null) }
             // D-3 — Fetch TMDB rating
             var tmdbRating by remember { mutableStateOf<String?>(null) }
+            // Cast photos from TMDB
+            var actorPhotos by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
             LaunchedEffect(movie.originName, movie.name) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {
@@ -135,8 +200,9 @@ fun DetailScreen(
                             val rating = omdbJson.optString("imdbRating", "N/A")
                             if (rating != "N/A") imdbRating = rating
                         }
-                        // D-3: TMDB search → vote_average
-                        val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?api_key=4a6aef11e0f5ff2aff6f3f2e6b4af3c3&query=$encodedTitle&language=vi-VN"
+                        // D-3: TMDB search → vote_average + cast photos
+                        val tmdbApiKey = "4a6aef11e0f5ff2aff6f3f2e6b4af3c3"
+                        val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?api_key=$tmdbApiKey&query=$encodedTitle&language=vi-VN"
                         val tmdbResp = client.newCall(Request.Builder().url(tmdbSearchUrl).build()).execute()
                         val tmdbJson = JSONObject(tmdbResp.body?.string() ?: "")
                         val tmdbResults = tmdbJson.optJSONArray("results")
@@ -145,6 +211,29 @@ fun DetailScreen(
                             val voteAvg = firstResult.optDouble("vote_average", 0.0)
                             if (voteAvg > 0.0) {
                                 tmdbRating = String.format("%.1f", voteAvg)
+                            }
+                            // Fetch cast photos from TMDB credits
+                            val tmdbId = firstResult.optInt("id", 0)
+                            val mediaType = firstResult.optString("media_type", "movie")
+                            if (tmdbId > 0) {
+                                try {
+                                    val creditsUrl = "https://api.themoviedb.org/3/$mediaType/$tmdbId/credits?api_key=$tmdbApiKey"
+                                    val creditsResp = client.newCall(Request.Builder().url(creditsUrl).build()).execute()
+                                    val creditsJson = JSONObject(creditsResp.body?.string() ?: "")
+                                    val castArray = creditsJson.optJSONArray("cast")
+                                    if (castArray != null) {
+                                        val photoMap = mutableMapOf<String, String>()
+                                        for (i in 0 until minOf(castArray.length(), 20)) {
+                                            val castMember = castArray.getJSONObject(i)
+                                            val name = castMember.optString("name", "")
+                                            val profilePath = castMember.optString("profile_path", "")
+                                            if (name.isNotBlank() && profilePath.isNotBlank() && profilePath != "null") {
+                                                photoMap[name] = "https://image.tmdb.org/t/p/w185$profilePath"
+                                            }
+                                        }
+                                        actorPhotos = photoMap
+                                    }
+                                } catch (_: Exception) { }
                             }
                         }
                     } catch (_: Exception) { }
@@ -192,33 +281,87 @@ fun DetailScreen(
                 }
             }
 
+            // A-6: Parallax scroll state
+            val listState = rememberLazyListState()
+            val backdropHeightPx = with(LocalDensity.current) { 320.dp.toPx() }
+            // Calculate scroll offset for parallax
+            val scrollOffset by remember {
+                derivedStateOf {
+                    if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat()
+                    else backdropHeightPx
+                }
+            }
+            val parallaxProgress = (scrollOffset / backdropHeightPx).coerceIn(0f, 1f)
+
             LazyColumn(
-                modifier = Modifier.fillMaxSize().background(C.Background)
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(C.Background)
+                    .graphicsLayer {
+                        // B-3: Entrance animation
+                        alpha = enterAlpha.value
+                        scaleX = enterScale.value
+                        scaleY = enterScale.value
+                    }
             ) {
-                // Backdrop
+                // A-6: Parallax Backdrop with scroll-driven effects
                 item {
-                    Box(Modifier.fillMaxWidth().height(280.dp)) {
+                    Box(Modifier.fillMaxWidth().height(320.dp)) {
                         AsyncImage(
                             model = ImageUtils.detailImage(movie.posterUrl.ifBlank { movie.thumbUrl }),
                             contentDescription = movie.name,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    // Parallax: image scrolls at 0.5x speed
+                                    translationY = scrollOffset * 0.5f
+                                    // Slight scale up as scrolling for depth
+                                    val scale = 1f + (parallaxProgress * 0.1f)
+                                    scaleX = scale
+                                    scaleY = scale
+                                    // Fade out image as scrolling
+                                    alpha = 1f - (parallaxProgress * 0.3f)
+                                }
                         )
+                        // Gradient overlay — more dramatic
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
-                            listOf(C.HeroGradientTop, C.HeroGradientBottom), startY = 80f
+                            listOf(
+                                Color.Transparent,
+                                C.Background.copy(alpha = 0.3f),
+                                C.Background.copy(alpha = 0.85f),
+                                C.Background
+                            ),
+                            startY = 50f
                         )))
-                        // Back button
-                        IconButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
+                        // Back button with glass bg
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        ) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = C.TextPrimary)
                         }
-                        // Title area
-                        Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-                            Text(movie.name, color = C.TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        // Title area with enhanced typography
+                        Column(
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp)
+                                .graphicsLayer {
+                                    // Title parallax: moves up slower
+                                    translationY = scrollOffset * 0.2f
+                                    alpha = 1f - (parallaxProgress * 0.8f)
+                                }
+                        ) {
+                            Text(movie.name, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                             if (movie.originName.isNotBlank())
-                                Text(movie.originName, color = C.TextSecondary, fontSize = 14.sp)
+                                Text(movie.originName, color = C.TextSecondary, fontFamily = InterFamily, fontSize = 14.sp)
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (movie.quality.isNotBlank()) Badge3(movie.quality, C.Primary)
+                                if (movie.quality.isNotBlank()) Badge3(movie.quality, accentColor)
                                 if (movie.lang.isNotBlank()) Badge3(TextUtils.shortLang(movie.lang), C.Badge)
                                 if (movie.episodeCurrent.isNotBlank()) Badge3(movie.episodeCurrent, C.SurfaceVariant)
                             }
@@ -237,7 +380,7 @@ fun DetailScreen(
                                 if (hasContinue) onPlay(slug, selectedServer, continueEp)
                                 else onPlay(slug, selectedServer, 0)
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = C.Primary),
+                            colors = ButtonDefaults.buttonColors(containerColor = accentColor),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.weight(1f).height(48.dp)
                         ) {
@@ -331,7 +474,7 @@ fun DetailScreen(
                             )
                         }
 
-                        // D-6: Cast grid — scrollable horizontal row of actor chips
+                        // D-6: Cast grid — scrollable horizontal row with TMDB photos
                         if (movie.actor.isNotEmpty() && movie.actor.any { it.isNotBlank() }) {
                             val actors = movie.actor.filter { it.isNotBlank() }
                             Text(
@@ -340,28 +483,47 @@ fun DetailScreen(
                                 fontSize = 13.sp,
                                 modifier = Modifier.padding(bottom = 4.dp)
                             )
+                            // Pre-compute: match OPhim actors → TMDB photos by name or position
+                            val tmdbKeys = actorPhotos.keys.toList()
                             LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 modifier = Modifier.padding(bottom = 12.dp)
                             ) {
-                                items(actors.take(12)) { actor ->
+                                items(actors.take(12).size) { idx ->
+                                    val actor = actors[idx]
+                                    // Try exact match, then positional match
+                                    val photoUrl = actorPhotos[actor]
+                                        ?: tmdbKeys.getOrNull(idx)?.let { actorPhotos[it] }
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.width(70.dp)
+                                        modifier = Modifier.width(72.dp)
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(50.dp)
+                                                .size(54.dp)
                                                 .clip(RoundedCornerShape(50))
                                                 .background(C.SurfaceVariant),
                                             contentAlignment = Alignment.Center
-                                        ) { Text("👤", fontSize = 22.sp) }
+                                        ) {
+                                            if (photoUrl != null) {
+                                                AsyncImage(
+                                                    model = photoUrl,
+                                                    contentDescription = actor,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(50))
+                                                )
+                                            } else {
+                                                Text("👤", fontSize = 22.sp)
+                                            }
+                                        }
                                         Spacer(Modifier.height(4.dp))
                                         Text(
                                             actor.split(" ").lastOrNull() ?: actor,
                                             color = C.TextSecondary,
+                                            fontFamily = InterFamily,
                                             fontSize = 10.sp,
                                             maxLines = 2,
+                                            textAlign = TextAlign.Center,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -442,6 +604,7 @@ fun DetailScreen(
                         Text(
                             "📺 Các phần khác (${relatedSeasons.size + 1} phần)",
                             color = C.TextPrimary,
+                            fontFamily = JakartaFamily,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
@@ -491,7 +654,7 @@ fun DetailScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Danh sách tập", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text("Danh sách tập", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             // D-8: Sort toggle
                             if (eps.size > 1) {
                                 Text(
@@ -564,6 +727,7 @@ fun DetailScreen(
                         Text(
                             "🎞️ Có thể bạn thích",
                             color = C.TextPrimary,
+                            fontFamily = JakartaFamily,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)

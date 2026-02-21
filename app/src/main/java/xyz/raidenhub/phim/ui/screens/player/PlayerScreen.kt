@@ -30,12 +30,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -62,6 +64,8 @@ import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.repository.AnimeRepository
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.Constants
 import xyz.raidenhub.phim.util.TextUtils
 
@@ -372,6 +376,7 @@ fun PlayerScreen(
     val speeds = Constants.PLAYBACK_SPEEDS
     var isLocked by remember { mutableStateOf(false) }
     var showSettingsSheet by remember { mutableStateOf(false) }
+    var showEpisodeSheet by remember { mutableStateOf(false) } // B-7: Episode Bottom Sheet
 
     // Brightness
     var brightness by remember {
@@ -562,8 +567,32 @@ fun PlayerScreen(
         // ═══ CONTROLS OVERLAY (OTT Premium) ═══
         if (showControls) {
             Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.45f))
+                modifier = Modifier.fillMaxSize().background(Color.Black.copy(0.5f))
             ) {
+                // B-5: Top gradient scrim
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Black.copy(0.7f), Color.Transparent)
+                            )
+                        )
+                )
+                // B-5: Bottom gradient scrim
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Black.copy(0.8f))
+                            )
+                        )
+                )
                 if (!isLocked) {
                     // ═══ TOP BAR ═══
                     Row(
@@ -581,6 +610,7 @@ fun PlayerScreen(
                         Text(
                             displayTitle,
                             color = Color.White,
+                            fontFamily = JakartaFamily,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -821,6 +851,7 @@ fun PlayerScreen(
                             Text(
                                 "${formatTime(currentPos)} / ${formatTime(duration)}",
                                 color = Color.White.copy(0.8f),
+                                fontFamily = InterFamily,
                                 fontSize = 12.sp
                             )
                         }
@@ -871,41 +902,33 @@ fun PlayerScreen(
 
                             Spacer(Modifier.width(12.dp))
 
-                            // Center: Episode strip
+                            // Center: Episode sheet trigger button
                             if (episodes.size > 1) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        "Episodes",
-                                        color = Color.White.copy(0.6f),
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    androidx.compose.foundation.lazy.LazyRow(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(0.15f),
+                                    modifier = Modifier.clickable {
+                                        showEpisodeSheet = true
+                                    }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
-                                        items(episodes.size) { idx ->
-                                            val isCurrentEp = idx == currentEp
-                                            Surface(
-                                                shape = RoundedCornerShape(6.dp),
-                                                color = if (isCurrentEp) C.Primary else Color.White.copy(0.15f),
-                                                border = if (isCurrentEp) androidx.compose.foundation.BorderStroke(2.dp, C.Primary) else null,
-                                                modifier = Modifier
-                                                    .size(width = 56.dp, height = 36.dp)
-                                                    .clickable { vm.setEpisode(idx) }
-                                            ) {
-                                                Box(contentAlignment = Alignment.Center) {
-                                                    Text(
-                                                        episodes[idx].name.let {
-                                                            if (it.length > 4) it.take(4) else it
-                                                        },
-                                                        color = if (isCurrentEp) Color.White else Color.White.copy(0.7f),
-                                                        fontSize = 11.sp,
-                                                        fontWeight = if (isCurrentEp) FontWeight.Bold else FontWeight.Normal
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        Icon(
+                                            Icons.Default.ViewList,
+                                            "Episodes",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "Tập ${(episodes.getOrNull(currentEp)?.name ?: "${currentEp + 1}")}",
+                                            color = Color.White,
+                                            fontFamily = InterFamily,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     }
                                 }
                             } else {
@@ -1197,6 +1220,70 @@ fun PlayerScreen(
                 }
             }
         )
+    }
+
+    // ═══ B-7: Episode Bottom Sheet ═══
+    if (showEpisodeSheet && episodes.size > 1) {
+        ModalBottomSheet(
+            onDismissRequest = { showEpisodeSheet = false },
+            containerColor = Color(0xFF1A1A2E),
+            contentColor = Color.White,
+            tonalElevation = 0.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 32.dp)
+            ) {
+                // Header
+                Text(
+                    "📋 Danh sách tập (${episodes.size})",
+                    fontFamily = JakartaFamily,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = Color.White,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                // Episode grid
+                androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                    columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(minSize = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.heightIn(max = 400.dp)
+                ) {
+                    items(episodes.size) { idx ->
+                        val isCurrentEp = idx == currentEp
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCurrentEp) C.Primary else Color.White.copy(0.1f),
+                            border = if (isCurrentEp)
+                                androidx.compose.foundation.BorderStroke(2.dp, C.Primary)
+                            else null,
+                            modifier = Modifier
+                                .height(44.dp)
+                                .clickable {
+                                    vm.setEpisode(idx)
+                                    showEpisodeSheet = false
+                                }
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    episodes[idx].name,
+                                    color = if (isCurrentEp) Color.White else Color.White.copy(0.8f),
+                                    fontFamily = InterFamily,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isCurrentEp) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

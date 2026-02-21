@@ -22,6 +22,7 @@ private val RaidenDarkScheme = darkColorScheme(
 fun RaidenPhimTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = RaidenDarkScheme,
+        typography = RaidenTypography,
         content = content
     )
 }

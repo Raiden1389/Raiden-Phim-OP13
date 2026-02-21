@@ -33,6 +33,7 @@ import xyz.raidenhub.phim.data.api.models.Anime47Genre
 import xyz.raidenhub.phim.data.api.models.Anime47Item
 import xyz.raidenhub.phim.data.repository.AnimeRepository
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
 
 @Composable
 fun AnimeScreen(
@@ -487,6 +488,7 @@ private fun SectionHeader(title: String) {
     Text(
         title,
         color = C.TextPrimary,
+        fontFamily = JakartaFamily,
         fontSize = 18.sp,
         fontWeight = FontWeight.Bold,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

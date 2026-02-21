@@ -2,8 +2,14 @@ package xyz.raidenhub.phim.navigation
 
 import android.content.Intent
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
@@ -12,8 +18,16 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -36,6 +50,7 @@ import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistListScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.InterFamily
 
 // #39 — Animated transition specs
 private val enterAnim = fadeIn(tween(300)) + slideInHorizontally(tween(300)) { it / 4 }
@@ -89,75 +104,17 @@ fun AppNavigation() {
         containerColor = C.Background,
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = C.Surface) {
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Home.route,
-                        onClick = {
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Home, "Home") },
-                        label = { Text("Phim", fontSize = 11.sp) },
-                        colors = navColors
-                    )
-                    // 🎌 Anime tab
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Anime.route,
-                        onClick = {
-                            navController.navigate(Screen.Anime.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Text("🎌", fontSize = 20.sp) },
-                        label = { Text("Anime", fontSize = 11.sp) },
-                        colors = navColors
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Search.route,
-                        onClick = {
-                            navController.navigate(Screen.Search.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Search, "Search") },
-                        label = { Text("Tìm kiếm", fontSize = 11.sp) },
-                        colors = navColors
-                    )
-                    // #36 — Watch History tab
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.WatchHistory.route,
-                        onClick = {
-                            navController.navigate(Screen.WatchHistory.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.History, "History") },
-                        label = { Text("Lịch sử", fontSize = 11.sp) },
-                        colors = navColors
-                    )
-                    NavigationBarItem(
-                        selected = currentRoute == Screen.Settings.route,
-                        onClick = {
-                            navController.navigate(Screen.Settings.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Settings, "Settings") },
-                        label = { Text("Cài đặt", fontSize = 11.sp) },
-                        colors = navColors
-                    )
-                }
+                // ═══ Glassmorphism Bottom Nav — frosted glass look ═══
+                GlassBottomNav(
+                    currentRoute = currentRoute,
+                    onNavigate = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
         }
     ) { innerPadding ->
@@ -304,6 +261,149 @@ fun AppNavigation() {
                     }
                 )
             }
+        }
+    }
+}
+
+// ═══ Glassmorphism Bottom Nav Bar ═══
+
+private data class NavItem(
+    val route: String,
+    val label: String,
+    val icon: ImageVector? = null,
+    val emoji: String? = null
+)
+
+private val navItems = listOf(
+    NavItem(Screen.Home.route, "Phim", Icons.Default.Home),
+    NavItem(Screen.Anime.route, "Anime", emoji = "🎌"),
+    NavItem(Screen.Search.route, "Tìm", Icons.Default.Search),
+    NavItem(Screen.WatchHistory.route, "Lịch sử", Icons.Default.History),
+    NavItem(Screen.Settings.route, "Cài đặt", Icons.Default.Settings),
+)
+
+@Composable
+private fun GlassBottomNav(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit
+) {
+    // Glass container
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xCC0D0D1A))  // 80% opaque — frosted effect
+            .navigationBarsPadding()
+    ) {
+        // Subtle top border glow
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(0.5.dp)
+                .background(C.Primary.copy(alpha = 0.3f))
+                .align(Alignment.TopCenter)
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            navItems.forEach { item ->
+                GlassNavItem(
+                    item = item,
+                    isSelected = currentRoute == item.route,
+                    onClick = { onNavigate(item.route) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassNavItem(
+    item: NavItem,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    val iconScale by animateFloatAsState(
+        targetValue = if (isSelected) 1.15f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 500f),
+        label = "nav_scale"
+    )
+    val iconColor by animateColorAsState(
+        targetValue = if (isSelected) C.Primary else C.TextSecondary,
+        animationSpec = tween(250),
+        label = "nav_color"
+    )
+    val bgAlpha by animateFloatAsState(
+        targetValue = if (isSelected) 0.15f else 0f,
+        animationSpec = tween(250),
+        label = "nav_bg"
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(C.Primary.copy(alpha = bgAlpha))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .then(
+                    Modifier.graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            if (item.icon != null) {
+                Icon(
+                    item.icon,
+                    contentDescription = item.label,
+                    tint = iconColor,
+                    modifier = Modifier.size(22.dp)
+                )
+            } else if (item.emoji != null) {
+                Text(item.emoji, fontSize = 18.sp)
+            }
+        }
+
+        Spacer(Modifier.height(2.dp))
+
+        // Animated label
+        AnimatedVisibility(
+            visible = isSelected,
+            enter = fadeIn(tween(200)) + expandVertically(tween(200)),
+            exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+        ) {
+            Text(
+                item.label,
+                color = C.Primary,
+                fontFamily = InterFamily,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 10.sp,
+                maxLines = 1
+            )
+        }
+        if (!isSelected) {
+            Text(
+                item.label,
+                color = C.TextMuted,
+                fontFamily = InterFamily,
+                fontWeight = FontWeight.Normal,
+                fontSize = 10.sp,
+                maxLines = 1
+            )
         }
     }
 }

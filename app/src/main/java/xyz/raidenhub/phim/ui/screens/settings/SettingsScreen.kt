@@ -26,6 +26,8 @@ import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
@@ -59,6 +61,7 @@ fun SettingsScreen() {
             Text(
                 "⚙️ Cài đặt",
                 color = C.TextPrimary,
+                fontFamily = JakartaFamily,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)
@@ -67,7 +70,7 @@ fun SettingsScreen() {
 
         // ═══ Playback Settings ═══
         item {
-            Text("▶️ Phát lại", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("▶️ Phát lại", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -84,8 +87,8 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("⏭ Tự động chuyển tập", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    Text("Tự chuyển sang tập tiếp theo khi hết", color = C.TextSecondary, fontSize = 12.sp)
+                    Text("⏭ Tự động chuyển tập", color = C.TextPrimary, fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("Tự chuyển sang tập tiếp theo khi hết", color = C.TextSecondary, fontFamily = InterFamily, fontSize = 12.sp)
                 }
                 Switch(
                     checked = autoPlayNext,
@@ -114,7 +117,7 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("📺 Chất lượng mặc định", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text("📺 Chất lượng mặc định", color = C.TextPrimary, fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Text(
                         SettingsManager.ALL_QUALITIES.find { it.first == defaultQuality }?.second ?: "🔄 Tự động",
                         color = C.TextSecondary,
@@ -134,7 +137,7 @@ fun SettingsScreen() {
 
         // ═══ N-1: Notifications ═══
         item {
-            Text("🔔 Thông báo", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("🔔 Thông báo", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -184,7 +187,7 @@ fun SettingsScreen() {
 
         // ═══ H-6: Sắp xếp các hàng phim ═══
         item {
-            Text("🗂️ Sắp xếp trang chủ", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("🗂️ Sắp xếp trang chủ", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(4.dp))
             Text("Kéo các nút ↑↓ để thay đổi thứ tự hiển thị", color = C.TextSecondary, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
@@ -247,7 +250,7 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("🚫 Phim bị ẩn khỏi Carousel", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("🚫 Phim bị ẩn khỏi Carousel", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
                     Text(
                         if (hiddenCount == 0) "Chưa ẩn phim nào" else "Đang ẩn $hiddenCount phim",
                         color = C.TextSecondary, fontSize = 13.sp
@@ -282,7 +285,7 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("🌍 Quốc gia", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("🌍 Quốc gia", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
                     Text(
                         if (selectedCountries.isEmpty()) "Hiện tất cả quốc gia" else "${selectedCountries.size} quốc gia đã chọn",
                         color = C.TextSecondary, fontSize = 13.sp
@@ -326,7 +329,7 @@ fun SettingsScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("🎭 Thể loại", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("🎭 Thể loại", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Text(
                         if (selectedGenres.isEmpty()) "Hiện tất cả thể loại" else "${selectedGenres.size} thể loại đã chọn",
                         color = C.TextSecondary, fontSize = 13.sp
@@ -364,7 +367,7 @@ fun SettingsScreen() {
 
         // ═══ Data Management ═══
         item {
-            Text("🗂️ Dữ liệu", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("🗂️ Dữ liệu", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -476,7 +479,7 @@ fun SettingsScreen() {
         item {
             HorizontalDivider(color = C.Surface, thickness = 1.dp)
             Spacer(Modifier.height(16.dp))
-            Text("📦 Sao lưu & Khôi phục", color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("📦 Sao lưu & Khôi phục", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
         }
         item {
@@ -567,6 +570,7 @@ fun SettingsScreen() {
             Text(
                 "📱 RaidenPhim v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
                 color = C.TextMuted,
+                fontFamily = InterFamily,
                 fontSize = 12.sp,
                 modifier = Modifier.fillMaxWidth()
             )

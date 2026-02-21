@@ -39,6 +39,8 @@ import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.MovieCard
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
+import xyz.raidenhub.phim.ui.theme.InterFamily
 
 // ═══ Search History Manager ═══
 object SearchHistoryManager {
@@ -310,7 +312,7 @@ fun SearchScreen(
 
         if (query.length < 2) {
             // S-2: Genre quick search row
-            Text("🎥 Thể loại", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            Text("🎥 Thể loại", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 12.dp),
@@ -344,7 +346,7 @@ fun SearchScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🕐 Tìm gần đây", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("🕐 Tìm gần đây", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Text(
                         "Xoá tất cả",
                         color = C.Primary,
@@ -380,7 +382,7 @@ fun SearchScreen(
 
             // #11 — Trending searches
             Spacer(Modifier.height(16.dp))
-            Text("🔥 Xu hướng", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            Text("🔥 Xu hướng", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             FlowRow(
                 modifier = Modifier.padding(horizontal = 12.dp),
@@ -405,8 +407,28 @@ fun SearchScreen(
                 CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(32.dp))
             }
         } else if (displayResults.isEmpty() && !loading) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("🔍 Không tìm thấy phim nào", color = C.TextSecondary, fontSize = 16.sp)
+            Box(
+                Modifier.fillMaxSize().padding(horizontal = 32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🎥", fontSize = 48.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Không tìm thấy phim nào",
+                        color = C.TextPrimary,
+                        fontFamily = JakartaFamily,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Thử tìm với từ khoá khác hoặc kiểm tra lại chính tả",
+                        color = C.TextSecondary,
+                        fontFamily = InterFamily,
+                        fontSize = 14.sp
+                    )
+                }
             }
         } else {
             // Save search when results appear

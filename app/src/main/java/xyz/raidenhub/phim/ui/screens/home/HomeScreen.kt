@@ -57,6 +57,8 @@ import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.MovieCard
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.JakartaFamily
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
 
 class HomeViewModel : ViewModel() {
@@ -599,9 +601,9 @@ private fun HeroCarousel(
                         .align(Alignment.BottomStart)
                         .padding(16.dp)
                 ) {
-                    Text("🔥 Phim Nổi Bật", color = C.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("🔥 Phim Nổi Bật", color = C.Primary, fontFamily = JakartaFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    Text(movie.name, color = C.TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
+                    Text(movie.name, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2)
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.padding(vertical = 4.dp)
@@ -688,8 +690,8 @@ private fun MovieRowSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("Xem thêm →", color = C.Primary, fontSize = 13.sp,
+            Text(title, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Xem thêm →", color = C.Primary, fontFamily = InterFamily, fontSize = 13.sp,
                 modifier = Modifier.clickable(onClick = onSeeMore))
         }
 
