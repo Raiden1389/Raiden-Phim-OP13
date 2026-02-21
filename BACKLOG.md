@@ -38,7 +38,7 @@
   - ⏳ Source 5: **OpenSubtitles** REST API (cần API key)
   - Flow: Search tên phim → query tất cả source song song → merge → sort Vietnamese first → user chọn [🇻🇳 VI] [🇬🇧 EN]
 - [ ] #31 Dark/Light theme toggle
-- [ ] #34 Notification tập mới
+- [x] #34 Notification tập mới
 - [x] #40 Season Grouping 📺 — detect multi-season, horizontal scroll chọn phần
 - [x] #41 English Tab (Consumet/FlixHQ) — Tab 🍿 English với Trending, Recent Movies, Recent Shows ✅ **Đã xóa** (chậm, lag, Consumet không ổn định)
 - [x] #42 Consumet Player Integration — stream M3U8 + subtitle picker cho phim English
@@ -93,8 +93,8 @@
 - [x] #SE-6 **Export/Import Backup** — Xuất favorites + watch history ra file JSON → import vào máy khác (share file)
 
 ### 🔔 Notifications
-- [ ] #N-1  **New Episode Notify** — WorkManager periodic check favorites → push notification khi ra tập mới
-- [ ] #N-3  **"Xem tiếp" Widget** — App widget 4x2 hiện danh sách "Xem tiếp" + tap to play
+- [x] #N-1  **New Episode Notify** — WorkManager periodic check favorites → push notification khi ra tập mới. `EpisodeCheckWorker.kt`
+- [x] #N-3  **"Xem tiếp" Widget** — App widget 4x2 hiện danh sách "Xem tiếp" + tap to play. `ContinueWatchingWidget.kt`
 
 ### 🗂️ Categories & Discovery
 - [x] #C-1  **Year Filter in Categories** — Dropdown năm (2020/2022/2024/Tất cả) trong CategoryScreen
