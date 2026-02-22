@@ -2,12 +2,14 @@ package xyz.raidenhub.phim.data.repository
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import xyz.raidenhub.phim.data.api.ApiClient
 import xyz.raidenhub.phim.data.api.models.EpisodeServer
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.api.models.MovieDetail
+import xyz.raidenhub.phim.util.AppError
 import xyz.raidenhub.phim.util.Constants
-import xyz.raidenhub.phim.util.TextUtils
+import xyz.raidenhub.phim.util.toAppError
 
 object MovieRepository {
     private val api = ApiClient.ophim
@@ -44,17 +46,19 @@ object MovieRepository {
     )
 
     suspend fun getMovieDetail(slug: String): Result<DetailResult> {
-        return runCatching {
+        return safeCall {
             // Try OPhim first
             try {
                 val response = api.getMovieDetail(slug)
-                val movie = response.data?.item ?: throw Exception("Not found on OPhim")
+                val movie = response.data?.item ?: throw AppError.ParseError("Not found on OPhim")
                 val episodes = movie.episodes.ifEmpty { response.data?.episodes.orEmpty() }
-                return@runCatching DetailResult(movie, episodes, "ophim")
+                return@safeCall DetailResult(movie, episodes, "ophim")
+            } catch (e: AppError.NetworkError) {
+                throw e  // Propagate network error — retry thay vì fallback
             } catch (_: Exception) { }
-            // Fallback to KKPhim
+            // Fallback to KKPhim (chỉ khi OPhim 404/parse fail)
             val response = kkApi.getMovieDetail(slug)
-            val movie = response.data?.item ?: throw Exception("Not found")
+            val movie = response.data?.item ?: throw AppError.ParseError("Not found on both sources")
             val episodes = movie.episodes.ifEmpty { response.data?.episodes.orEmpty() }
             DetailResult(movie, episodes, "kkphim")
         }
@@ -79,7 +83,6 @@ object MovieRepository {
             val korD  = async { api.getKorean(1).data?.items.orEmpty().filterTrailer().sortNewest() }
             val tvD   = async {
                 try {
-                    // KKPhim chỉ có 10 item/trang → fetch 2 trang để Home row có ~20 item
                     val p1 = async { kkApi.getTvShows(1).data?.items.orEmpty() }
                     val p2 = async { kkApi.getTvShows(2).data?.items.orEmpty() }
                     (p1.await() + p2.await())
@@ -107,11 +110,29 @@ object MovieRepository {
 
     private fun List<Movie>.tagSource(src: String) = map { it.copy(source = src) }
 
+    /**
+     * Smart safeCall:
+     * - Phân loại exception → AppError (NetworkError / HttpError / ParseError)
+     * - Chỉ retry nếu NetworkError (mất mạng / timeout) — delay 1s
+     * - KHÔNG retry HttpError (404, 500) hay ParseError → fail nhanh
+     */
     private suspend fun <T> safeCall(block: suspend () -> T): Result<T> {
         return try {
             Result.success(block())
-        } catch (e: Exception) {
-            try { Result.success(block()) } catch (re: Exception) { Result.failure(re) }
+        } catch (e: Throwable) {
+            val appError = e.toAppError()
+            if (appError.isRetryable) {
+                // Single retry sau 1 giây — chỉ cho NetworkError
+                delay(1000L)
+                try {
+                    Result.success(block())
+                } catch (re: Throwable) {
+                    Result.failure(re.toAppError())
+                }
+            } else {
+                // HttpError / ParseError / Unknown → fail ngay
+                Result.failure(appError)
+            }
         }
     }
 }

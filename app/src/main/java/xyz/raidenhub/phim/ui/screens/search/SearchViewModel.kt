@@ -10,12 +10,16 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.local.SearchHistoryManager
 import xyz.raidenhub.phim.data.repository.MovieRepository
+import xyz.raidenhub.phim.util.AppError
+import xyz.raidenhub.phim.util.toAppError
 
 class SearchViewModel : ViewModel() {
     private val _results = MutableStateFlow<List<Movie>>(emptyList())
     val results = _results.asStateFlow()
     private val _loading = MutableStateFlow(false)
     val loading = _loading.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
 
     // #13 — Search suggestions (live autocomplete from history + trending)
     private val _suggestions = MutableStateFlow<List<String>>(emptyList())
@@ -35,16 +39,25 @@ class SearchViewModel : ViewModel() {
     fun search(query: String) {
         searchJob?.cancel()
         updateSuggestions(query)
+        _error.value = null
         if (query.length < 2) { _results.value = emptyList(); return }
         searchJob = viewModelScope.launch {
             delay(400) // debounce
             _loading.value = true
             MovieRepository.search(query)
                 .onSuccess { _results.value = it }
-                .onFailure { _results.value = emptyList() }
+                .onFailure { e ->
+                    _results.value = emptyList()
+                    val err = e.toAppError()
+                    // Chỉ show error khi NetworkError — ParseError silently ignored
+                    if (err is AppError.NetworkError) {
+                        _error.value = err.userMessage
+                    }
+                }
             _loading.value = false
         }
     }
+
 
     private fun updateSuggestions(query: String) {
         if (query.length < 2) { _suggestions.value = emptyList(); return }

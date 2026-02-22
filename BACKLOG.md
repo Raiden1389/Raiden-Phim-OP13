@@ -144,8 +144,8 @@
 - [x] #TD-3 **Coil cache tuning** — 200MB disk cache + 50MB memory cache + hardware bitmaps (GPU) trong `App.kt`
 - [x] #TD-4 **God Screen Split** ✅ v1.19.2 — PlayerScreen (1298L), DetailScreen (827L), HomeScreen (798L), SearchScreen (538L) → tách thành Screen + ViewModel + Components riêng (13 files)
 ### 🟡 P1 — Important
-- [ ] #TD-5 **Hilt DI** — Thay 8 `object + init(context)` singleton bằng Hilt @Inject. ViewModel dùng @HiltViewModel. Testable + clean
-- [ ] #TD-7 **Error Handling Strategy** — Phân biệt NetworkError/ApiError/ParseError. Retry chỉ cho network. Thêm Crashlytics free tier cho release build
+  - [ ] #TD-5  **Hilt DI** ⏸️ *when needed* — Khi có unit tests hoặc team > 1 dev. Hiện tại `object` singletons làm việc tốt sau Room migration. ~30-40 files đổi, risk cao
+  - [x] #TD-7  **Error Handling Strategy** ✅ v1.20.3 — `AppError` sealed class (NetworkError/HttpError/ParseError/UnknownError). `safeCall` chỉ retry NetworkError (delay 1s). ViewModels dùng `userMessage` + `isRetryable` flag cho UI
 - [ ] #TD-9 **Offline Mode** — Cache last-loaded Home data vào Room. Mất mạng → hiện data cũ + banner "Đang offline". Continue Watching vẫn hoạt động
 ### 🟢 P2 — Nice to have
   - [x] #TD-8  **API Key Security** ✅ v1.20.3 — TMDB_API_KEY + FEBBOX_COOKIE → local.properties + BuildConfig. Constants.kt dùng `BuildConfig.*`, zero hardcode

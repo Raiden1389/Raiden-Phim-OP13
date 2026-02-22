@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.EpisodeServer
 import xyz.raidenhub.phim.data.api.models.MovieDetail
 import xyz.raidenhub.phim.data.repository.MovieRepository
+import xyz.raidenhub.phim.util.toAppError
 
 class DetailViewModel : ViewModel() {
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
@@ -18,7 +19,13 @@ class DetailViewModel : ViewModel() {
             _state.value = DetailState.Loading
             MovieRepository.getMovieDetail(slug)
                 .onSuccess { _state.value = DetailState.Success(it.movie, it.episodes) }
-                .onFailure { _state.value = DetailState.Error(it.message ?: "Error") }
+                .onFailure { e ->
+                    val err = e.toAppError()
+                    _state.value = DetailState.Error(
+                        message = err.userMessage,
+                        isRetryable = err.isRetryable
+                    )
+                }
         }
     }
 }
@@ -26,5 +33,8 @@ class DetailViewModel : ViewModel() {
 sealed class DetailState {
     data object Loading : DetailState()
     data class Success(val movie: MovieDetail, val episodes: List<EpisodeServer>) : DetailState()
-    data class Error(val message: String) : DetailState()
+    data class Error(
+        val message: String,
+        val isRetryable: Boolean = true
+    ) : DetailState()
 }
