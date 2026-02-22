@@ -5,6 +5,14 @@ plugins {
     id("com.google.devtools.ksp")   // Room annotation processor
 }
 
+// ═══ Load local.properties (API keys) ═══
+fun localProp(key: String): String {
+    val props = org.jetbrains.kotlin.konan.properties.Properties()
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().buffered().use(props::load)
+    return props.getProperty(key, "")
+}
+
 android {
     namespace = "xyz.raidenhub.phim"
     compileSdk = 36
@@ -15,7 +23,12 @@ android {
         targetSdk = 35
         versionCode = 58
         versionName = "1.20.2"
+
+        // ═══ API Keys từ local.properties (không hardcode trong source) ═══
+        buildConfigField("String", "TMDB_API_KEY", "\"${localProp("tmdb.api.key")}\"")
+        buildConfigField("String", "FEBBOX_COOKIE", "\"${localProp("febbox.cookie")}\"")
     }
+
 
     signingConfigs {
         create("release") {

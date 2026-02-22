@@ -9,6 +9,7 @@ import com.google.gson.annotations.SerializedName
 
 // ═══ TMDB ═══
 
+@Immutable
 data class TmdbSearchResponse(
     @SerializedName("results") val results: List<TmdbSearchItem> = emptyList(),
     @SerializedName("total_results") val totalResults: Int = 0,
@@ -46,6 +47,7 @@ data class TmdbSearchItem(
     val backdropUrl: String get() = if (backdropPath != null) "https://image.tmdb.org/t/p/w780$backdropPath" else ""
 }
 
+@Immutable
 data class TmdbMovieDetail(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("title") val title: String = "",
@@ -67,6 +69,7 @@ data class TmdbMovieDetail(
     val backdropUrl: String get() = if (backdropPath != null) "https://image.tmdb.org/t/p/w1280$backdropPath" else ""
 }
 
+@Immutable
 data class TmdbTvDetail(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("name") val name: String = "",
@@ -90,11 +93,13 @@ data class TmdbTvDetail(
     val backdropUrl: String get() = if (backdropPath != null) "https://image.tmdb.org/t/p/w1280$backdropPath" else ""
 }
 
+@Immutable
 data class TmdbGenre(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("name") val name: String = ""
 )
 
+@Immutable
 data class TmdbSeason(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("season_number") val seasonNumber: Int = 0,
@@ -105,6 +110,7 @@ data class TmdbSeason(
     @SerializedName("overview") val overview: String = ""
 )
 
+@Immutable
 data class TmdbSeasonDetail(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("season_number") val seasonNumber: Int = 0,
@@ -112,6 +118,7 @@ data class TmdbSeasonDetail(
     @SerializedName("episodes") val episodes: List<TmdbEpisode> = emptyList()
 )
 
+@Immutable
 data class TmdbEpisode(
     @SerializedName("id") val id: Int = 0,
     @SerializedName("episode_number") val episodeNumber: Int = 0,
@@ -125,6 +132,7 @@ data class TmdbEpisode(
     val thumbUrl: String get() = if (stillPath != null) "https://image.tmdb.org/t/p/w300$stillPath" else ""
 }
 
+@Immutable
 data class TmdbTrendingResponse(
     @SerializedName("results") val results: List<TmdbSearchItem> = emptyList(),
     @SerializedName("page") val page: Int = 1,

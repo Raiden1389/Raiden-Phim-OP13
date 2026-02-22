@@ -2,6 +2,7 @@ package xyz.raidenhub.phim.data.local
 
 import android.content.Context
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import xyz.raidenhub.phim.data.db.entity.WatchedEpisodeEntity
 
 // ═══ UI-facing models — không đổi để UI không bị ảnh hưởng ═══
 
+@Immutable
 data class ContinueItem(
     val slug: String,
     val name: String,

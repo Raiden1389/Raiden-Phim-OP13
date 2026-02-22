@@ -1,5 +1,7 @@
 package xyz.raidenhub.phim.util
 
+import xyz.raidenhub.phim.BuildConfig
+
 object Constants {
     // ═══ API Base URLs ═══
     const val OPHIM_BASE_URL  = "https://ophim1.com/v1/api/"
@@ -47,12 +49,14 @@ object Constants {
     // ═══ Continue Watching ═══
     const val MAX_CONTINUE_ITEMS = 10
 
-    // ═══ SuperStream (English content) ═══
-    const val TMDB_API_KEY = "758905ef980c7b17abab5441e8033914"
+    // ═══ SuperStream — API keys từ BuildConfig (local.properties) ═══
+    val TMDB_API_KEY: String get() = BuildConfig.TMDB_API_KEY
+    val FEBBOX_COOKIE: String get() = BuildConfig.FEBBOX_COOKIE
+
     const val TMDB_BASE_URL = "https://api.themoviedb.org/3/"
     const val TMDB_IMG_W342 = "https://image.tmdb.org/t/p/w342"
     const val TMDB_IMG_W780 = "https://image.tmdb.org/t/p/w780"
     const val SHOWBOX_BASE_URL = "https://showbox.media/"
     const val FEBBOX_BASE_URL = "https://www.febbox.com/"
-    const val FEBBOX_COOKIE = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpYXQiOjE3NzE2OTQ2MDIsIm5iZiI6MTc3MTY5NDYwMiwiZXhwIjoxODAyNzk4NjIyLCJkYXRhIjp7InVpZCI6MTQ1MjE3OCwidG9rZW4iOiJiM2EyYWYxNzA0MDI5NjI2NzA0Njc4OTYxMWYwMThkNSJ9fQ.oFssqGTDyS6EC2zc_QsIjHdtd1bWf9CoP8zFh0y5LBc"
 }
+

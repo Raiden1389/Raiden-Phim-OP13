@@ -1,6 +1,7 @@
 package xyz.raidenhub.phim.data.local
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import xyz.raidenhub.phim.data.db.dao.PlaylistWithItems
 
 // ═══ Model classes (UI-facing) — giữ nguyên để không phá UI ═══
 
+@Immutable
 data class WatchlistItem(
     val slug: String,
     val name: String,
@@ -22,6 +24,7 @@ data class WatchlistItem(
     val addedAt: Long = System.currentTimeMillis()
 )
 
+@Immutable
 data class Playlist(
     val id: String,
     val name: String,

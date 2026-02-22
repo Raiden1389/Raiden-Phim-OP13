@@ -1,6 +1,7 @@
 package xyz.raidenhub.phim.data.local
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -10,6 +11,7 @@ import xyz.raidenhub.phim.data.db.AppDatabase
 import xyz.raidenhub.phim.data.db.entity.FavoriteEntity
 
 /** UI-facing model — fields match old SharedPrefs Gson model */
+@Immutable
 data class FavoriteItem(
     val slug: String,
     val name: String,
