@@ -47,6 +47,8 @@ import xyz.raidenhub.phim.ui.screens.history.WatchHistoryScreen
 import xyz.raidenhub.phim.ui.screens.home.HomeScreen
 import xyz.raidenhub.phim.ui.screens.search.SearchScreen
 import xyz.raidenhub.phim.ui.screens.settings.SettingsScreen
+import xyz.raidenhub.phim.ui.screens.superstream.SuperStreamScreen
+import xyz.raidenhub.phim.ui.screens.superstream.SuperStreamDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistListScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
@@ -96,7 +98,8 @@ fun AppNavigation() {
     // Hide bottom bar on non-tab screens
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route, Screen.Search.route, Screen.Favorites.route,
-        Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route
+        Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route,
+        Screen.SuperStream.route
     )
 
     val navColors = NavigationBarItemDefaults.colors(
@@ -268,6 +271,30 @@ fun AppNavigation() {
                     }
                 )
             }
+
+            // ═══ SuperStream (English content) ═══
+            composable(Screen.SuperStream.route) {
+                SuperStreamScreen(
+                    onItemClick = { tmdbId, type ->
+                        navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                Screen.SuperStreamDetail.route,
+                arguments = listOf(
+                    navArgument("tmdbId") { type = NavType.IntType },
+                    navArgument("type") { type = NavType.StringType }
+                )
+            ) { entry ->
+                SuperStreamDetailScreen(
+                    tmdbId = entry.arguments?.getInt("tmdbId") ?: 0,
+                    type = entry.arguments?.getString("type") ?: "movie",
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
@@ -284,6 +311,7 @@ private data class NavItem(
 private val navItems = listOf(
     NavItem(Screen.Home.route, "Phim", Icons.Default.Home),
     NavItem(Screen.Anime.route, "Anime", emoji = "🎌"),
+    NavItem(Screen.SuperStream.route, "English", emoji = "🌍"),
     NavItem(Screen.Search.route, "Tìm", Icons.Default.Search),
     NavItem(Screen.WatchHistory.route, "Lịch sử", Icons.Default.History),
     NavItem(Screen.Settings.route, "Cài đặt", Icons.Default.Settings),

@@ -87,6 +87,23 @@ class PlayerViewModel : ViewModel() {
                 }
         }
     }
+
+    /**
+     * SuperStream source: direct m3u8 URL, no fetch needed.
+     * Creates a single-episode list so ExoPlayer picks it up immediately.
+     */
+    fun loadDirectStream(url: String, videoTitle: String = "") {
+        _title.value = videoTitle
+        _currentEp.value = 0
+        _episodes.value = listOf(
+            Episode(
+                name = videoTitle,
+                slug = "direct",
+                linkEmbed = "",
+                linkM3u8 = url
+            )
+        )
+    }
 }
 
 // ═══ Utility ═══

@@ -67,6 +67,12 @@ class PlayerActivity : ComponentActivity() {
         // Anime47 extras
         val episodeIds  = intent.getIntArrayExtra("episodeIds") ?: intArrayOf()
         val animeTitle  = intent.getStringExtra("animeTitle") ?: ""
+        // SuperStream extras
+        val streamUrl     = intent.getStringExtra("stream_url") ?: ""
+        val streamTitle   = intent.getStringExtra("title") ?: ""
+        val streamSeason  = intent.getIntExtra("stream_season", 0)
+        val streamEpisode = intent.getIntExtra("stream_episode", 0)
+        val streamType    = intent.getStringExtra("stream_type") ?: ""
 
         setContent {
             RaidenPhimTheme {
@@ -78,6 +84,11 @@ class PlayerActivity : ComponentActivity() {
                     source         = source,
                     episodeIds     = episodeIds,
                     animeTitle     = animeTitle,
+                    streamUrl      = streamUrl,
+                    streamTitle    = streamTitle,
+                    streamSeason   = streamSeason,
+                    streamEpisode  = streamEpisode,
+                    streamType     = streamType,
                     onBack         = { finish() }
                 )
             }

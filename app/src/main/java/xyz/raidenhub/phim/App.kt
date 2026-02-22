@@ -32,6 +32,12 @@ class App : Application() {
         HeroFilterManager.init(this)
         SectionOrderManager.init(this)
 
+        // SuperStream (English content) — init WebView + FebBox cookie
+        xyz.raidenhub.phim.data.repository.SuperStreamRepository.init(this)
+        xyz.raidenhub.phim.data.repository.SuperStreamRepository.setFebBoxCookie(
+            xyz.raidenhub.phim.util.Constants.FEBBOX_COOKIE
+        )
+
         // N-1: Episode notification channel + schedule nếu user đã bật
         EpisodeCheckWorker.createChannel(this)
         if (SettingsManager.notifyNewEpisode.value) {

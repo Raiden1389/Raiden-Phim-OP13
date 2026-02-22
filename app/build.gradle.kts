@@ -12,8 +12,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 55
-        versionName = "1.19.2"
+        versionCode = 56
+        versionName = "1.20.0"
     }
 
     signingConfigs {
@@ -26,6 +26,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"  // Cài song song với bản release, không đè
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

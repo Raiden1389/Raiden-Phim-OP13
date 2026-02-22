@@ -1,5 +1,54 @@
 # Raiden Phim — Changelog
 
+## v1.20.0 — 2026-02-22 (SuperStream English Content)
+
+### 🌐 NEW — SuperStream Tab (English Movies & TV Shows)
+
+Tích hợp hoàn chỉnh nguồn phim tiếng Anh qua SuperStream pipeline.
+
+#### Architecture
+- **TMDB API** — Metadata, trending, search, seasons, episodes
+- **NuvFeb API** — Direct M3U8/MP4 stream links via FebBox cookie
+- **ShowBox API** — TripleDES encrypted search + share_key extraction
+
+#### New Files (11)
+- **`SuperStreamApi.kt`** — TMDB + ShowBox + FebBox Retrofit interfaces
+- **`SuperStreamModels.kt`** — TmdbSearchItem, TmdbMovieDetail, TmdbTvDetail, TmdbSeason, TmdbEpisode
+- **`SuperStreamRepository.kt`** — Stream pipeline orchestration
+- **`SuperStreamScreen.kt`** — Browse/search with inline search bar + favorites row
+- **`SuperStreamDetailScreen.kt`** — Movie/TV detail + episode list + favorite button
+- **`SuperStreamDetailViewModel.kt`** — Detail state + stream state management
+- **`SuperStreamViewModel.kt`** — Trending + search logic
+- **`SuperStreamComponents.kt`** — SuperStreamCard, SuperStreamRow, SeasonSelector, EpisodeItem
+- **`ShowBoxCrypto.kt`** — TripleDES encryption for ShowBox API
+- **`FebBoxWebViewHelper.kt`** — WebView cookie helper
+- **`SafeTypeAdapterFactory.kt`** — Gson crash protection
+
+#### Modified Files
+- **`ApiClient.kt`** — TMDB, ShowBox, FebBox clients + lenient Gson for Anime47
+- **`AppNavigation.kt`** — SuperStream browse + detail routes
+- **`Screen.kt`** — SuperStream screen definitions
+- **`Constants.kt`** — API keys, base URLs, FebBox cookie
+- **`PlayerActivity.kt`** — stream_season, stream_episode, stream_type extras
+- **`PlayerScreen.kt`** — Direct stream playback, auto-play fix, subtitle display
+- **`PlayerViewModel.kt`** — `loadDirectStream()` for direct M3U8 URLs
+- **`SettingsScreen.kt`** — SuperStream debug/test buttons
+
+### ⭐ Favorites (SuperStream)
+- **Heart button** trên DetailScreen — toggle favorite via WatchlistManager
+- **"⭐ Favorites" row** trên SuperStreamScreen — hiển thị items đã lưu
+- Slug format: `ss_movie_{tmdbId}`, `ss_tv_{tmdbId}`, source = `"superstream"`
+
+### 🎬 Player Enhancements
+- **Auto-play** — `player.play()` + `playWhenReady = true` sau prepare()
+- **Subtitle display** — Hiện `🇻🇳 Vietnamese • S01E03` thay vì raw release name
+- **Season/Episode params** — Pass to subtitle search cho kết quả chính xác hơn
+
+### 🐛 Fixes
+- **Anime47 Gson crash** — `SafeTypeAdapterFactory` xử lý type mismatch (array↔object)
+- **Search bar UI** — Đưa ra khỏi TopAppBar, text wrap đúng
+
+
 ## v1.19.2 — 2026-02-21 (Phase 01: God Screen Split)
 
 ### 🔧 Refactoring — God Screen Split

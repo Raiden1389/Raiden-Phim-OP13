@@ -30,4 +30,9 @@ sealed class Screen(val route: String) {
     }
     // C-2: Genre Hub
     data object GenreHub : Screen("genre_hub")
+    // SuperStream (English content)
+    data object SuperStream : Screen("superstream")
+    data object SuperStreamDetail : Screen("superstream_detail/{tmdbId}/{type}") {
+        fun createRoute(tmdbId: Int, type: String) = "superstream_detail/$tmdbId/$type"
+    }
 }

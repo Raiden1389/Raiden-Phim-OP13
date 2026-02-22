@@ -39,6 +39,8 @@ import java.util.Date
 import java.util.Locale
 import xyz.raidenhub.phim.notification.EpisodeCheckWorker
 
+
+
 @Composable
 fun SettingsScreen() {
     val selectedCountries by SettingsManager.selectedCountries.collectAsState()
@@ -556,6 +558,105 @@ fun SettingsScreen() {
                 )
             }
             Spacer(Modifier.height(24.dp))
+        }
+        // ═══ DEBUG: SuperStream API Test ═══
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(16.dp))
+            var testResult by remember { mutableStateOf("") }
+            var isTesting by remember { mutableStateOf(false) }
+
+            Text("🧪 SuperStream Test", color = C.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Test 1: ShowBox share_link (Cloudflare test)
+                Button(
+                    onClick = {
+                        isTesting = true
+                        testResult = "Testing..."
+                        Thread {
+                            try {
+                                val client = okhttp3.OkHttpClient.Builder()
+                                    .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                                    .readTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                                    .build()
+                                // Test showbox.media share_link — Two and a Half Men (ID:92, type:2=TV)
+                                val req = okhttp3.Request.Builder()
+                                    .url("https://www.showbox.media/index/share_link?id=92&type=2")
+                                    .header("Accept-Language", "en")
+                                    .header("User-Agent", "okhttp/3.2.0")
+                                    .build()
+                                val resp = client.newCall(req).execute()
+                                val body = resp.body?.string() ?: ""
+                                val msg = "ShowBox: ${resp.code}\n$body"
+                                android.util.Log.d("SuperStream", msg)
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    testResult = msg
+                                    isTesting = false
+                                }
+                            } catch (e: Exception) {
+                                val msg = "Error: ${e.message}"
+                                android.util.Log.e("SuperStream", msg)
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    testResult = msg
+                                    isTesting = false
+                                }
+                            }
+                        }.start()
+                    },
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(containerColor = C.Primary)
+                ) { Text("Test ShowBox", fontSize = 12.sp) }
+
+                // Test 2: FebBox file_list (should always work)
+                Button(
+                    onClick = {
+                        isTesting = true
+                        testResult = "Testing FebBox..."
+                        Thread {
+                            try {
+                                val client = okhttp3.OkHttpClient()
+                                val req = okhttp3.Request.Builder()
+                                    .url("https://www.febbox.com/file/file_share_list?share_key=fNBTg8at")
+                                    .header("Accept-Language", "en")
+                                    .build()
+                                val resp = client.newCall(req).execute()
+                                val body = resp.body?.string() ?: ""
+                                val msg = "FebBox: ${resp.code}\n${body.take(300)}"
+                                android.util.Log.d("SuperStream", msg)
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    testResult = msg
+                                    isTesting = false
+                                }
+                            } catch (e: Exception) {
+                                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                    testResult = "Error: ${e.message}"
+                                    isTesting = false
+                                }
+                            }
+                        }.start()
+                    },
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(containerColor = C.Surface)
+                ) { Text("Test FebBox", fontSize = 12.sp, color = C.TextPrimary) }
+            }
+
+            if (testResult.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    testResult,
+                    color = if (testResult.contains("200")) C.Primary else C.TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = InterFamily,
+                    lineHeight = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(C.Surface, shape = RoundedCornerShape(8.dp))
+                        .padding(12.dp)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
         }
         item {
             HorizontalDivider(color = C.Surface, thickness = 1.dp)

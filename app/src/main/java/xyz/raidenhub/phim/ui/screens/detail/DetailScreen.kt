@@ -138,9 +138,9 @@ fun DetailScreen(
                             if (rating != "N/A") imdbRating = rating
                         }
                         // D-3: TMDB search → vote_average + cast photos
-                        val tmdbApiKey = "4a6aef11e0f5ff2aff6f3f2e6b4af3c3"
-                        val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?api_key=$tmdbApiKey&query=$encodedTitle&language=vi-VN"
-                        val tmdbResp = client.newCall(Request.Builder().url(tmdbSearchUrl).build()).execute()
+                        val tmdbToken = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3NTg5MDVlZjk4MGM3YjE3YWJhYjU0NDFlODAzMzkxNCIsIm5iZiI6MTc3MTM5MDkwMS40NzksInN1YiI6IjY5OTU0N2I1MjZlZTNlMWFlM2ZhNDBhNyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.-3O6afnx0tBl0Ybkf7Lvd4m0N2NUSSZMmzM43nhHZB0"
+                        val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?query=$encodedTitle&language=vi-VN"
+                        val tmdbResp = client.newCall(Request.Builder().url(tmdbSearchUrl).header("Authorization", "Bearer $tmdbToken").build()).execute()
                         val tmdbJson = JSONObject(tmdbResp.body?.string() ?: "")
                         val tmdbResults = tmdbJson.optJSONArray("results")
                         if (tmdbResults != null && tmdbResults.length() > 0) {
@@ -154,8 +154,8 @@ fun DetailScreen(
                             val mediaType = firstResult.optString("media_type", "movie")
                             if (tmdbId > 0) {
                                 try {
-                                    val creditsUrl = "https://api.themoviedb.org/3/$mediaType/$tmdbId/credits?api_key=$tmdbApiKey"
-                                    val creditsResp = client.newCall(Request.Builder().url(creditsUrl).build()).execute()
+                                    val creditsUrl = "https://api.themoviedb.org/3/$mediaType/$tmdbId/credits"
+                                    val creditsResp = client.newCall(Request.Builder().url(creditsUrl).header("Authorization", "Bearer $tmdbToken").build()).execute()
                                     val creditsJson = JSONObject(creditsResp.body?.string() ?: "")
                                     val castArray = creditsJson.optJSONArray("cast")
                                     if (castArray != null) {

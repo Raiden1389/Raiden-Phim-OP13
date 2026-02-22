@@ -60,6 +60,9 @@ import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.Constants
+import androidx.media3.common.C as MediaC
+import androidx.media3.common.TrackSelectionOverride
+import xyz.raidenhub.phim.data.repository.SubtitleRepository
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -68,9 +71,14 @@ fun PlayerScreen(
     server: Int,
     episode: Int,
     startPositionMs: Long = 0L,
-    source: String = "kkphim",          // "kkphim" | "anime47"
+    source: String = "kkphim",          // "kkphim" | "anime47" | "superstream"
     episodeIds: IntArray = intArrayOf(), // Anime47: danh sách ep IDs
     animeTitle: String = "",            // Anime47: tên anime cho title bar
+    streamUrl: String = "",             // SuperStream: direct m3u8 URL
+    streamTitle: String = "",           // SuperStream: video title
+    streamSeason: Int = 0,             // SuperStream: season number (for sub search)
+    streamEpisode: Int = 0,            // SuperStream: episode number (for sub search)
+    streamType: String = "",           // SuperStream: "movie" or "tv"
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
@@ -138,7 +146,9 @@ fun PlayerScreen(
 
     // ═══ LOAD — branch theo source ═══
     LaunchedEffect(slug, source) {
-        if (source == "anime47" && episodeIds.isNotEmpty()) {
+        if (source == "superstream" && streamUrl.isNotBlank()) {
+            vm.loadDirectStream(streamUrl, streamTitle)
+        } else if (source == "anime47" && episodeIds.isNotEmpty()) {
             vm.loadAnime47(episodeIds, episode, animeTitle)
         } else {
             vm.load(slug, server, episode)
@@ -185,6 +195,8 @@ fun PlayerScreen(
                     player.seekTo(startPositionMs)
                     hasSeekOnce = true
                 }
+                player.playWhenReady = true
+                player.play()
             }
         }
     }
@@ -290,6 +302,7 @@ fun PlayerScreen(
     var isLocked by remember { mutableStateOf(false) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showEpisodeSheet by remember { mutableStateOf(false) } // B-7: Episode Bottom Sheet
+    var showSubtitleDialog by remember { mutableStateOf(false) }
 
     // Brightness
     var brightness by remember {
@@ -802,7 +815,10 @@ fun PlayerScreen(
                                 // CC (subtitle) button
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color.White.copy(0.12f)
+                                    color = Color.White.copy(0.12f),
+                                    modifier = Modifier.clickable {
+                                        showSubtitleDialog = true
+                                    }
                                 ) {
                                     Icon(
                                         Icons.Default.ClosedCaption,
@@ -1197,5 +1213,162 @@ fun PlayerScreen(
                 }
             }
         }
+    }
+
+    // ═══ SUBTITLE SELECTION DIALOG ═══
+    if (showSubtitleDialog) {
+        var subtitleResults by remember { mutableStateOf<List<xyz.raidenhub.phim.data.api.models.SubtitleResult>>(emptyList()) }
+        var isSearching by remember { mutableStateOf(true) }
+        val scope = rememberCoroutineScope()
+
+        // Search subtitles on dialog open
+        LaunchedEffect(Unit) {
+            val searchTitle = title.ifBlank { "Unknown" }
+            try {
+                subtitleResults = SubtitleRepository.searchSubtitles(
+                    filmName = searchTitle,
+                    type = streamType.ifBlank { null },
+                    season = streamSeason.takeIf { it > 0 },
+                    episode = streamEpisode.takeIf { it > 0 }
+                )
+            } catch (_: Exception) {}
+            isSearching = false
+        }
+
+        // Embedded HLS text tracks
+        val textTracks = remember(player.currentTracks) {
+            val tracks = mutableListOf<Triple<Int, Int, String>>()
+            for (group in player.currentTracks.groups) {
+                if (group.type == MediaC.TRACK_TYPE_TEXT) {
+                    for (i in 0 until group.length) {
+                        val fmt = group.getTrackFormat(i)
+                        val label = fmt.label ?: fmt.language?.uppercase() ?: "Sub $i"
+                        val sel = group.isTrackSelected(i)
+                        tracks.add(Triple(player.currentTracks.groups.indexOf(group), i,
+                            if (sel) "✅ $label" else label))
+                    }
+                }
+            }
+            tracks
+        }
+
+        AlertDialog(
+            onDismissRequest = { showSubtitleDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showSubtitleDialog = false }) {
+                    Text("Đóng", color = C.Primary)
+                }
+            },
+            title = { Text("🔤 Phụ đề", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.heightIn(max = 400.dp)) {
+                    // Off button
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White.copy(0.08f),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
+                            player.trackSelectionParameters = player.trackSelectionParameters
+                                .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, true).build()
+                            showSubtitleDialog = false
+                        }
+                    ) { Text("❌ Tắt phụ đề", Modifier.padding(10.dp), fontSize = 13.sp) }
+
+                    // Embedded tracks
+                    if (textTracks.isNotEmpty()) {
+                        Text("📺 Trong video", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
+                            color = Color.Gray, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
+                        textTracks.forEach { (gIdx, tIdx, lbl) ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (lbl.startsWith("✅")) C.Primary.copy(0.2f) else Color.White.copy(0.08f),
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
+                                    val grp = player.currentTracks.groups[gIdx]
+                                    player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                                        .setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, false)
+                                        .setOverrideForType(TrackSelectionOverride(grp.mediaTrackGroup, tIdx))
+                                        .build()
+                                    showSubtitleDialog = false
+                                }
+                            ) { Text(lbl, Modifier.padding(10.dp), fontSize = 13.sp) }
+                        }
+                    }
+
+                    // Online search
+                    Text("🌐 Online", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
+                        color = Color.Gray, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
+
+                    if (isSearching) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = C.Primary)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Đang tìm...", fontSize = 13.sp, color = Color.Gray)
+                        }
+                    } else if (subtitleResults.isEmpty()) {
+                        Text("Không tìm thấy phụ đề.", color = Color.Gray, fontSize = 13.sp)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                            items(subtitleResults.size.coerceAtMost(15)) { idx ->
+                                val sub = subtitleResults[idx]
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White.copy(0.08f),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
+                                        scope.launch {
+                                            try {
+                                                // For SubDL zip files → use SubtitleDownloader
+                                                val subUrl = if (sub.url.endsWith(".zip")) {
+                                                    val sdl = xyz.raidenhub.phim.data.api.models.SubDLSubtitle(
+                                                        releaseName = sub.fileName, url = sub.url.removePrefix("https://dl.subdl.com"),
+                                                        lang = sub.language, language = sub.languageLabel
+                                                    )
+                                                    xyz.raidenhub.phim.util.SubtitleDownloader
+                                                        .downloadSubDL(context, sdl)?.url ?: sub.url
+                                                } else sub.url
+
+                                                val subUri = android.net.Uri.parse(subUrl)
+                                                val mime = xyz.raidenhub.phim.util.SubtitleConverter.getMimeType(subUrl)
+                                                val subCfg = MediaItem.SubtitleConfiguration.Builder(subUri)
+                                                    .setMimeType(mime)
+                                                    .setLanguage(sub.language)
+                                                    .setLabel(sub.languageLabel)
+                                                    .setSelectionFlags(MediaC.SELECTION_FLAG_DEFAULT)
+                                                    .build()
+                                                val pos = player.currentPosition
+                                                val cur = player.currentMediaItem
+                                                if (cur != null) {
+                                                    player.setMediaItem(cur.buildUpon()
+                                                        .setSubtitleConfigurations(listOf(subCfg)).build())
+                                                    player.prepare()
+                                                    player.seekTo(pos)
+                                                    player.trackSelectionParameters = player.trackSelectionParameters
+                                                        .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, false).build()
+                                                }
+                                            } catch (_: Exception) {}
+                                            showSubtitleDialog = false
+                                        }
+                                    }
+                                ) {
+                                    Column(Modifier.padding(10.dp)) {
+                                        // Primary: flag + language + episode info from fileName
+                                        val epInfo = Regex("""[Ss](\d+)[Ee](\d+)""").find(sub.fileName)
+                                            ?.let { " • S${it.groupValues[1]}E${it.groupValues[2]}" } ?: ""
+                                        Text("${sub.flag} ${sub.languageLabel}$epInfo",
+                                            fontSize = 13.sp, maxLines = 1, color = Color.White.copy(0.95f),
+                                            fontWeight = FontWeight.Medium)
+                                        // Secondary: source + release name (truncated)
+                                        val releaseName = sub.fileName.take(35).let { if (sub.fileName.length > 35) "$it…" else it }
+                                        Text("${sub.source}${if (releaseName.isNotBlank()) " • $releaseName" else ""}${if (sub.downloadCount > 0) " • ${sub.downloadCount}↓" else ""}",
+                                            fontSize = 10.sp, color = Color.Gray, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        )
     }
 }
