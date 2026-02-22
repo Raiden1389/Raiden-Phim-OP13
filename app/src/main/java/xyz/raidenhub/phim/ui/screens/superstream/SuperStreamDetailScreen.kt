@@ -112,7 +112,7 @@ fun SuperStreamDetailScreen(
 
     // Favorite state
     val favSlug = "ss_${type}_${tmdbId}"
-    val watchlistItems by WatchlistManager.items.collectAsState()
+    val watchlistItems by WatchlistManager.items.collectAsState(initial = emptyList())
     val isFavorite = remember(watchlistItems, favSlug) {
         watchlistItems.any { it.slug == favSlug }
     }
@@ -193,8 +193,8 @@ fun SuperStreamDetailScreen(
             is DetailState.TvSuccess -> {
                 // Watched episodes tracking
                 val watchSlug = "ss_tv_${tmdbId}"
-                val watchedMap by WatchHistoryManager.watchedEps.collectAsState()
-                val watchedSet = watchedMap[watchSlug] ?: emptySet()
+                val watchedEpIndices by WatchHistoryManager.getWatchedEpisodes(watchSlug).collectAsState(initial = emptyList())
+                val watchedSet = watchedEpIndices.toSet()
 
                 TvDetailContent(
                     tv = s.tv,

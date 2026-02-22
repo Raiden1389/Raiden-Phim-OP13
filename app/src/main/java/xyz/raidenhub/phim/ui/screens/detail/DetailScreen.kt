@@ -64,9 +64,9 @@ fun DetailScreen(
 ) {
     LaunchedEffect(slug) { vm.load(slug) }
     val state by vm.state.collectAsState()
-    val favorites by FavoriteManager.favorites.collectAsState()
-    val watchedMap by WatchHistoryManager.watchedEps.collectAsState()
-    val continueList by WatchHistoryManager.continueList.collectAsState()
+    val favorites by FavoriteManager.favorites.collectAsState(initial = emptyList())
+    val watchedEpIndices by WatchHistoryManager.getWatchedEpisodes(slug).collectAsState(initial = emptyList())
+    val continueList by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
 
     when (val s = state) {
         is DetailState.Loading -> ShimmerDetailScreen()
@@ -101,12 +101,12 @@ fun DetailScreen(
                 label = "accent_color"
             )
             val isFav = favorites.any { it.slug == slug }
-            val watchedSet = watchedMap[slug] ?: emptySet()
+            val watchedSet = watchedEpIndices.toSet()
             // C-4: Watchlist state
-            val watchlistItems by WatchlistManager.items.collectAsState()
+            val watchlistItems by WatchlistManager.items.collectAsState(initial = emptyList())
             val isWatchlisted = watchlistItems.any { it.slug == slug }
             // C-5: Playlist sheet
-            val playlists by PlaylistManager.playlists.collectAsState()
+            val playlists by PlaylistManager.playlists.collectAsState(initial = emptyList())
             var showPlaylistSheet by remember { mutableStateOf(false) }
 
             // #20 — Detect continue watching position
@@ -721,7 +721,9 @@ fun DetailScreen(
                         } else {
                             Column {
                                 playlists.forEach { pl ->
-                                    val inList = PlaylistManager.isInPlaylist(pl.id, slug)
+                                    val inList = remember(playlists) {
+                                        pl.items.any { it.slug == slug }
+                                    }
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()

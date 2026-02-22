@@ -156,10 +156,8 @@ object SettingsManager {
         obj.optString("playlists").takeIf { it.isNotBlank() }?.let {
             playlistPrefs.edit().putString("playlists_v1", it).apply()
         }
-        // Re-init managers in-memory
-        FavoriteManager.init(context)
-        WatchHistoryManager.init(context)
-        WatchlistManager.init(context)
-        PlaylistManager.init(context)
+        // Note: Room-based managers (FavoriteManager, WatchHistoryManager, etc.)
+        // are initialized in App.kt with DB — no reinit needed here.
+        // Legacy SharedPrefs data written above is for migration only.
     }
 }

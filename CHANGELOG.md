@@ -1,6 +1,66 @@
 # Raiden Phim — Changelog
 
+## v1.20.2 — 2026-02-22 (Room DB Migration — Phase 3 Fix)
+
+### 🔧 Refactoring — Room DB Migration Phase 3
+
+Hoàn thành migration toàn bộ managers từ SharedPreferences sang Room DB.
+Fix tất cả compilation errors phát sinh từ Room Flow vs StateFlow API differences.
+
+#### Key Fixes
+- **`PlayerScreen`** — `saveProgress()` → `updateContinue()` với params đúng (API rename)
+- **`SearchViewModel`** — `history.value` (invalid trên Room Flow) → `_cachedHistory` pattern (collect trong `init {}`, cache cho sync access)
+- **`SearchViewModel`** — `.distinct()` (Flow operator) → `.distinctBy { }` (List operator)
+- **`SearchScreen`** — Remove `LaunchedEffect { init(context) }` — SearchHistoryManager đã init qua App.kt
+- **`SettingsManager`** — Xoá `FavoriteManager/WatchHistoryManager/WatchlistManager/PlaylistManager.init(context)` cũ trong `restoreFromJson` (Room managers không reinit bằng Context)
+- **`SuperStreamDetailScreen`** — `watchedEps.collectAsState()` (field không tồn tại) → `getWatchedEpisodes(slug).collectAsState(initial = emptyList())`
+- **`HeroFilterManager.hiddenCount`** — Dùng như `Int` → `Flow<Int>.collectAsState(initial = 0)`
+
+#### Rule mới phát hiện
+> **Room Flow bắt buộc có `initial` trong `collectAsState()`** — khác StateFlow vì Room Flow không emit ngay lập tức
+
+#### collectAsState() initial thêm vào (12 files)
+| Screen | Flow |
+|--------|------|
+| `HomeScreen` | `FavoriteManager.favorites`, `SectionOrderManager.order` |
+| `WatchHistoryScreen` | `WatchHistoryManager.continueList` |
+| `DetailScreen` | `WatchHistoryManager.getWatchedEpisodes()`, `PlaylistManager.playlists` |
+| `MovieCard` | `FavoriteManager.favorites` |
+| `SearchScreen` | `SearchHistoryManager.history` |
+| `SettingsScreen` | `SectionOrderManager.order`, `HeroFilterManager.hiddenCount` |
+| `WatchlistScreen` | `WatchlistManager.items`, `PlaylistManager.playlists` (×2) |
+| `SuperStreamScreen` | `WatchlistManager.items` |
+| `SuperStreamDetailScreen` | `WatchlistManager.items` |
+
+#### Files Modified (24)
+- `app/build.gradle.kts` — Version 1.20.1→1.20.2, build 57→58
+- `data/local/WatchHistoryManager.kt` — ContinueItem compat aliases
+- `data/local/FavoriteManager.kt` — FavoriteItem model, getFavoritesOnce()
+- `data/local/SearchHistoryManager.kt` — Room-backed, no Context needed
+- `data/local/HeroFilterManager.kt` — hiddenCount: Int → Flow<Int>
+- `data/local/SectionOrderManager.kt` — Room-backed order Flow
+- `data/local/SettingsManager.kt` — Remove old Context-based reinit
+- `data/local/WatchlistManager.kt` — isInWatchlistFlow added
+- `data/db/dao/FavoriteDao.kt` — getAllOnce() suspend function
+- `notification/EpisodeCheckWorker.kt` — getFavoritesOnce() suspend
+- `ui/screens/home/HomeScreen.kt` — collectAsState initial fixes
+- `ui/screens/history/WatchHistoryScreen.kt` — episodeIdx compat
+- `ui/screens/detail/DetailScreen.kt` — watchedEps → Flow
+- `ui/screens/player/PlayerScreen.kt` — saveProgress → updateContinue
+- `ui/screens/search/SearchScreen.kt` — initial + remove init call
+- `ui/screens/search/SearchViewModel.kt` — _cachedHistory pattern
+- `ui/screens/settings/SettingsScreen.kt` — hiddenCount collectAsState
+- `ui/screens/watchlist/WatchlistScreen.kt` — initial × 3
+- `ui/screens/superstream/SuperStreamScreen.kt` — initial
+- `ui/screens/superstream/SuperStreamDetailScreen.kt` — watchedEps + initial
+- `ui/components/MovieCard.kt` — initial + toggle Unit fix
+- `app/schemas/` — Room migration schemas (new)
+- `data/db/` — DAO + Entity files (new)
+
+---
+
 ## v1.20.1 — 2026-02-22 (Remove Anime Tab)
+
 
 ### 🗑️ Removed — Anime Tab (Anime47)
 - **Xoá hoàn toàn tab 🎌 Anime** khỏi bottom navigation bar

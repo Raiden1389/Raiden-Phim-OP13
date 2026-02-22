@@ -82,7 +82,7 @@ class EpisodeCheckWorker(
     }
 
     override suspend fun doWork(): Result {
-        val favorites = FavoriteManager.favorites.value
+        val favorites = FavoriteManager.getFavoritesOnce()
         if (favorites.isEmpty()) return Result.success()
 
         val prefs = applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)

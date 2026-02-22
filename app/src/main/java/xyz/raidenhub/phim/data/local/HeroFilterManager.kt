@@ -1,40 +1,36 @@
 package xyz.raidenhub.phim.data.local
 
 import android.content.Context
-import android.content.SharedPreferences
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import xyz.raidenhub.phim.data.db.AppDatabase
+import xyz.raidenhub.phim.data.db.entity.HeroFilterEntity
 
 /**
- * H-1 — Hero Carousel Filter
- * Lưu danh sách slug bị ẩn khỏi Hero Carousel (long press → "Bỏ qua phim này").
+ * H-1 — Hero Carousel Filter (Room-backed).
  */
 object HeroFilterManager {
-    private const val PREF_NAME = "hero_filter"
-    private const val KEY_HIDDEN = "hidden_slugs"
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private lateinit var db: AppDatabase
 
-    private lateinit var prefs: SharedPreferences
-
-    private val _hiddenSlugs = MutableStateFlow<Set<String>>(emptySet())
-    val hiddenSlugs = _hiddenSlugs.asStateFlow()
-
-    fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        _hiddenSlugs.value = prefs.getStringSet(KEY_HIDDEN, emptySet()) ?: emptySet()
+    fun init(db: AppDatabase) {
+        this.db = db
     }
+
+    val hiddenSlugs: Flow<Set<String>>
+        get() = db.heroFilterDao().getHiddenSlugs().map { it.toSet() }
+
+    val hiddenCount: Flow<Int>
+        get() = db.heroFilterDao().count()
 
     fun hide(slug: String) {
-        val updated = _hiddenSlugs.value + slug
-        _hiddenSlugs.value = updated
-        prefs.edit().putStringSet(KEY_HIDDEN, updated).apply()
+        scope.launch { db.heroFilterDao().hide(HeroFilterEntity(slug)) }
     }
-
-    fun isHidden(slug: String) = _hiddenSlugs.value.contains(slug)
 
     fun clearAll() {
-        _hiddenSlugs.value = emptySet()
-        prefs.edit().remove(KEY_HIDDEN).apply()
+        scope.launch { db.heroFilterDao().clearAll() }
     }
-
-    val hiddenCount: Int get() = _hiddenSlugs.value.size
 }

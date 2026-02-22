@@ -197,7 +197,7 @@ fun SettingsScreen() {
 
         // H-6: Render each section with move up/down buttons
         item {
-            val sectionOrder by SectionOrderManager.order.collectAsState()
+            val sectionOrder by SectionOrderManager.order.collectAsState(initial = emptyList())
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sectionOrder.forEachIndexed { idx, id ->
                     val info = SectionOrderManager.getSectionInfo(id)
@@ -245,7 +245,7 @@ fun SettingsScreen() {
 
         // ═══ H-1: Hero Carousel Filter ═══
         item {
-            val hiddenCount = HeroFilterManager.hiddenCount
+            val hiddenCount by HeroFilterManager.hiddenCount.collectAsState(initial = 0)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

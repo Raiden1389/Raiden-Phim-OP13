@@ -1,74 +1,92 @@
 package xyz.raidenhub.phim.data.local
 
 import android.content.Context
-import android.content.SharedPreferences
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import xyz.raidenhub.phim.data.db.AppDatabase
+import xyz.raidenhub.phim.data.db.entity.SectionOrderEntity
 
 /**
- * H-6 — Home Section Reorder
- * Lưu thứ tự các section row trên Home theo preference của user.
+ * H-6 — Home Section Reorder (Room-backed).
  */
 object SectionOrderManager {
-    private const val PREF_NAME = "section_order"
-    private const val KEY_ORDER = "order"
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private lateinit var db: AppDatabase
 
-    // Định nghĩa các section có thể reorder
     data class HomeSection(val id: String, val label: String, val emoji: String)
 
     val ALL_SECTIONS = listOf(
-        HomeSection("new",     "Phim Mới",    "🔥"),
-        HomeSection("korean",  "K-Drama",     "🇰🇷"),
-        HomeSection("series",  "Phim Bộ",     "📺"),
-        HomeSection("single",  "Phim Lẻ",     "🎬"),
-        HomeSection("anime",   "Hoạt Hình",   "🎌"),
-        HomeSection("tvshows", "TV Shows",    "📺"),
+        HomeSection("new",     "Phim Mới",   "🔥"),
+        HomeSection("korean",  "K-Drama",    "🇰🇷"),
+        HomeSection("series",  "Phim Bộ",    "📺"),
+        HomeSection("single",  "Phim Lẻ",    "🎬"),
+        HomeSection("anime",   "Hoạt Hình",  "🎌"),
+        HomeSection("tvshows", "TV Shows",   "📺"),
     )
 
-    private lateinit var prefs: SharedPreferences
-
-    private val _order = MutableStateFlow(ALL_SECTIONS.map { it.id })
-    val order = _order.asStateFlow()
-
-    fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        val saved = prefs.getString(KEY_ORDER, null)
-        if (saved != null) {
-            val ids = saved.split(",").filter { id -> ALL_SECTIONS.any { it.id == id } }
-            // Thêm section mới nếu chưa có trong saved order
-            val missing = ALL_SECTIONS.map { it.id }.filter { it !in ids }
-            _order.value = ids + missing
+    fun init(db: AppDatabase) {
+        this.db = db
+        // Seed defaults nếu DB trống (fresh install)
+        scope.launch {
+            val existing = db.sectionOrderDao().getAllOnce()
+            if (existing.isEmpty()) {
+                val defaults = ALL_SECTIONS.mapIndexed { idx, s ->
+                    SectionOrderEntity(sectionId = s.id, position = idx, isVisible = true)
+                }
+                db.sectionOrderDao().upsertAll(defaults)
+            }
         }
     }
 
+    /** Reactive ordered list of section IDs */
+    val order: Flow<List<String>>
+        get() = db.sectionOrderDao().getAll().map { list ->
+            val ids = list.map { it.sectionId }
+            // Merge new sections not in DB yet
+            val missing = ALL_SECTIONS.map { it.id }.filter { it !in ids }
+            ids + missing
+        }
+
     fun reorder(newOrder: List<String>) {
-        _order.value = newOrder
-        prefs.edit().putString(KEY_ORDER, newOrder.joinToString(",")).apply()
+        scope.launch {
+            val entities = newOrder.mapIndexed { idx, id ->
+                SectionOrderEntity(sectionId = id, position = idx)
+            }
+            db.sectionOrderDao().upsertAll(entities)
+        }
     }
 
     fun moveUp(id: String) {
-        val current = _order.value.toMutableList()
-        val idx = current.indexOf(id)
-        if (idx > 0) {
-            current.removeAt(idx)
-            current.add(idx - 1, id)
-            reorder(current)
+        scope.launch {
+            val current = db.sectionOrderDao().getAllOnce().map { it.sectionId }.toMutableList()
+            val idx = current.indexOf(id)
+            if (idx > 0) {
+                current.removeAt(idx)
+                current.add(idx - 1, id)
+                reorder(current)
+            }
         }
     }
 
     fun moveDown(id: String) {
-        val current = _order.value.toMutableList()
-        val idx = current.indexOf(id)
-        if (idx < current.size - 1) {
-            current.removeAt(idx)
-            current.add(idx + 1, id)
-            reorder(current)
+        scope.launch {
+            val current = db.sectionOrderDao().getAllOnce().map { it.sectionId }.toMutableList()
+            val idx = current.indexOf(id)
+            if (idx < current.size - 1) {
+                current.removeAt(idx)
+                current.add(idx + 1, id)
+                reorder(current)
+            }
         }
     }
 
     fun reset() {
-        val defaultOrder = ALL_SECTIONS.map { it.id }
-        reorder(defaultOrder)
+        reorder(ALL_SECTIONS.map { it.id })
     }
 
     fun getSectionInfo(id: String) = ALL_SECTIONS.find { it.id == id }

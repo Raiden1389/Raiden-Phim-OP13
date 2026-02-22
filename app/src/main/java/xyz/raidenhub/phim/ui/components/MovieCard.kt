@@ -43,7 +43,7 @@ fun MovieCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val favorites by FavoriteManager.favorites.collectAsState()
+    val favorites by FavoriteManager.favorites.collectAsState(initial = emptyList())
     val isFav = favorites.any { it.slug == movie.slug }
 
     // ═══ Press scale animation — Netflix-style ═══
@@ -67,10 +67,10 @@ fun MovieCard(
                 indication = null,
                 onClick = onClick,
                 onLongClick = onLongClick ?: {
-                    val added = FavoriteManager.toggle(movie.slug, movie.name, movie.thumbUrl)
+                    FavoriteManager.toggle(movie.slug, movie.name, movie.thumbUrl)
                     Toast.makeText(
                         context,
-                        if (added) "❤️ Đã thêm vào Yêu thích" else "💔 Đã xoá khỏi Yêu thích",
+                        if (isFav) "💔 Đã xoá khỏi Yêu thích" else "❤️ Đã thêm vào Yêu thích",
                         Toast.LENGTH_SHORT
                     ).show()
                 }

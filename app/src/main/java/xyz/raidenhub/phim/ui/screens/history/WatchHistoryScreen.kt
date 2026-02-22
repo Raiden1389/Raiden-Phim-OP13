@@ -34,7 +34,7 @@ fun WatchHistoryScreen(
     onMovieClick: (String) -> Unit,
     onContinue: (slug: String, server: Int, episode: Int, source: String) -> Unit
 ) {
-    val continueList by WatchHistoryManager.continueList.collectAsState()
+    val continueList by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
 
     Column(
         modifier = Modifier
@@ -77,7 +77,7 @@ fun WatchHistoryScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .background(C.Surface)
                             .clickable {
-                                onContinue(item.slug, item.server, item.episode, item.source)
+                                onContinue(item.slug, item.server, item.episodeIdx, item.source)
                             }
                             .padding(12.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)

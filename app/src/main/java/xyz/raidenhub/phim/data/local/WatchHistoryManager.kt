@@ -1,166 +1,153 @@
 package xyz.raidenhub.phim.data.local
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import xyz.raidenhub.phim.util.Constants
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import xyz.raidenhub.phim.data.db.AppDatabase
+import xyz.raidenhub.phim.data.db.entity.ContinueWatchingEntity
+import xyz.raidenhub.phim.data.db.entity.WatchedEpisodeEntity
+
+// ═══ UI-facing models — không đổi để UI không bị ảnh hưởng ═══
+
+data class ContinueItem(
+    val slug: String,
+    val name: String,
+    val thumbUrl: String,
+    val episodeIdx: Int,
+    val episodeName: String = "",
+    val positionMs: Long = 0L,
+    val durationMs: Long = 0L,
+    val source: String = "ophim",
+    val lastWatched: Long = System.currentTimeMillis()
+) {
+    /** Compat aliases for UI code that uses old field names */
+    val episode: Int get() = episodeIdx
+    val epName: String get() = episodeName
+    val server: Int get() = 0  // Room doesn't track server idx — default 0
+    val progress: Float get() = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
+}
 
 /**
- * Manages watch history: continue watching + watched episodes.
+ * WatchHistoryManager — migrated to Room (Phase 03).
+ * Manages:
+ *   • ContinueWatching (per-movie progress)
+ *   • WatchedEpisodes  (per-episode completion)
  */
 object WatchHistoryManager {
-    private const val PREF_NAME = "watch_history"
-    private const val KEY_CONTINUE = "continue_list"
-    private const val KEY_WATCHED = "watched_eps"
-    private const val TAG = "WatchHistory"
+    private const val TAG = "WatchHistoryMgr"
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private lateinit var db: AppDatabase
 
-    private lateinit var prefs: SharedPreferences
-    private lateinit var appContext: Context
-    private val gson = Gson()
-
-    private val _continueList = MutableStateFlow<List<ContinueItem>>(emptyList())
-    val continueList = _continueList.asStateFlow()
-
-    private val _watchedEps = MutableStateFlow<Map<String, Set<Int>>>(emptyMap())
-    val watchedEps = _watchedEps.asStateFlow()
-
-    data class ContinueItem(
-        @SerializedName("slug") val slug: String = "",
-        @SerializedName("name") val name: String = "",
-        @SerializedName("thumbUrl") val thumbUrl: String = "",
-        @SerializedName("source") val source: String = "ophim",
-        @SerializedName("server") val server: Int = 0,
-        @SerializedName("episode") val episode: Int = 0,
-        @SerializedName("epName") val epName: String = "",
-        @SerializedName("positionMs") val positionMs: Long = 0,
-        @SerializedName("durationMs") val durationMs: Long = 0,
-        @SerializedName("lastWatched") val lastWatched: Long = System.currentTimeMillis()
-    ) {
-        val progress: Float get() = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f
-    }
-
-    fun init(context: Context) {
-        appContext = context.applicationContext
-        prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        _continueList.value = loadContinue()
-        _watchedEps.value = loadWatched()
-        Log.d(TAG, "init: ${_continueList.value.size} continue, ${_watchedEps.value.size} watched")
+    fun init(db: AppDatabase) {
+        this.db = db
+        Log.d(TAG, "init: Room-backed WatchHistoryManager ready")
     }
 
     // ═══ Continue Watching ═══
 
-    fun saveProgress(
-        slug: String, name: String, thumbUrl: String, source: String,
-        server: Int, episode: Int, epName: String,
-        positionMs: Long, durationMs: Long
-    ) {
-        val threshold = durationMs * 0.9
-        if (positionMs >= threshold && durationMs > 0) {
-            markWatched(slug, episode)
-            removeContinue(slug)
-            return
+    /** Reactive Flow for Home & Continue Watching screen */
+    val continueWatching: Flow<List<ContinueItem>>
+        get() = db.watchHistoryDao().getContinueWatching().map { list ->
+            list.map { it.toContinueItem() }
         }
-        if (positionMs < 30_000) return
 
-        val current = _continueList.value.toMutableList()
-        current.removeAll { it.slug == slug }
-        current.add(0, ContinueItem(slug, name, thumbUrl, source, server, episode, epName, positionMs, durationMs))
-        val trimmed = current.take(Constants.MAX_CONTINUE_ITEMS)
-        _continueList.value = trimmed
-        saveContinue(trimmed)
+    /** Compat alias — UI uses continueList.collectAsState() */
+    val continueList: Flow<List<ContinueItem>> get() = continueWatching
+
+    fun getContinueItem(slug: String): ContinueItem? = runBlocking(Dispatchers.IO) {
+        db.watchHistoryDao().getContinueItem(slug)?.toContinueItem()
+    }
+
+    fun updateContinue(
+        slug: String,
+        name: String,
+        thumbUrl: String,
+        episodeIdx: Int,
+        episodeName: String,
+        positionMs: Long,
+        durationMs: Long,
+        source: String = "ophim"
+    ) {
+        scope.launch {
+            db.watchHistoryDao().upsertContinue(
+                ContinueWatchingEntity(
+                    slug = slug,
+                    name = name,
+                    thumbUrl = thumbUrl,
+                    episodeIdx = episodeIdx,
+                    episodeName = episodeName,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    source = source,
+                    lastWatched = System.currentTimeMillis()
+                )
+            )
+        }
     }
 
     fun removeContinue(slug: String) {
-        val current = _continueList.value.toMutableList()
-        current.removeAll { it.slug == slug }
-        _continueList.value = current
-        saveContinue(current)
+        scope.launch { db.watchHistoryDao().removeContinue(slug) }
+    }
+
+    fun clearAllContinue() {
+        scope.launch { db.watchHistoryDao().clearAllContinue() }
     }
 
     // ═══ Watched Episodes ═══
 
-    fun markWatched(slug: String, epIdx: Int) {
-        val current = _watchedEps.value.toMutableMap()
-        val eps = current.getOrDefault(slug, emptySet()).toMutableSet()
-        eps.add(epIdx)
-        current[slug] = eps
-        _watchedEps.value = current
-        saveWatched(current)
+    fun getWatchedEpisodes(slug: String): Flow<List<Int>> =
+        db.watchHistoryDao().getWatchedEpisodes(slug)
+
+    fun getWatchedEpisodesSync(slug: String): List<Int> = runBlocking(Dispatchers.IO) {
+        db.watchHistoryDao().getWatchedEpisodesOnce(slug)
     }
 
-    fun isWatched(slug: String, epIdx: Int): Boolean {
-        return _watchedEps.value[slug]?.contains(epIdx) == true
-    }
-
-    fun getWatchedSet(slug: String): Set<Int> {
-        return _watchedEps.value[slug] ?: emptySet()
-    }
-
-    // ═══ Persistence ═══
-
-    private fun loadContinue(): List<ContinueItem> {
-        val json = prefs.getString(KEY_CONTINUE, null)
-        if (json.isNullOrBlank()) return emptyList()
-        return try {
-            // Array::class.java — tránh R8 strip TypeToken generic
-            val arr = gson.fromJson(json, Array<ContinueItem>::class.java)
-            arr?.toList() ?: emptyList()
-        } catch (e: Exception) {
-            Log.e(TAG, "loadContinue FAILED: ${e.message}")
-            emptyList()
+    fun markWatched(slug: String, episodeIdx: Int) {
+        scope.launch {
+            db.watchHistoryDao().markWatched(
+                WatchedEpisodeEntity(slug = slug, episodeIdx = episodeIdx)
+            )
         }
     }
 
-    private fun saveContinue(items: List<ContinueItem>) {
-        prefs.edit().putString(KEY_CONTINUE, gson.toJson(items)).commit()
-        // Notify widget to refresh
-        notifyWidgetUpdate()
+    fun isWatched(slug: String, episodeIdx: Int): Boolean = runBlocking(Dispatchers.IO) {
+        db.watchHistoryDao().isWatched(slug, episodeIdx)
     }
 
-    private fun notifyWidgetUpdate() {
-        try {
-            if (!::appContext.isInitialized) return
-            val mgr = android.appwidget.AppWidgetManager.getInstance(appContext)
-            val component = android.content.ComponentName(appContext, xyz.raidenhub.phim.widget.ContinueWatchingWidgetReceiver::class.java)
-            val ids = mgr.getAppWidgetIds(component)
-            if (ids.isNotEmpty()) {
-                val updateIntent = android.content.Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_UPDATE)
-                updateIntent.putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                updateIntent.component = component
-                appContext.sendBroadcast(updateIntent)
-                Log.d(TAG, "Widget update triggered for ${ids.size} widgets")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Widget update failed: ${e.message}")
+    /** For #UX-2 Episode Tracker Badge */
+    suspend fun watchedCount(slug: String): Int =
+        db.watchHistoryDao().watchedCount(slug)
+
+    fun clearHistory(slug: String) {
+        scope.launch {
+            db.watchHistoryDao().clearWatchedForSlug(slug)
+            db.watchHistoryDao().removeContinue(slug)
         }
-    }
-
-    private fun loadWatched(): Map<String, Set<Int>> {
-        val json = prefs.getString(KEY_WATCHED, null)
-        if (json.isNullOrBlank()) return emptyMap()
-        return try {
-            // TypeToken OK cho primitive types (Map<String, List<Int>>)
-            val raw: Map<String, List<Int>> = gson.fromJson(json, object : TypeToken<Map<String, List<Int>>>() {}.type)
-            raw.mapValues { it.value.toSet() }
-        } catch (e: Exception) {
-            Log.e(TAG, "loadWatched FAILED: ${e.message}")
-            emptyMap()
-        }
-    }
-
-    private fun saveWatched(map: Map<String, Set<Int>>) {
-        val raw = map.mapValues { it.value.toList() }
-        prefs.edit().putString(KEY_WATCHED, gson.toJson(raw)).commit()
     }
 
     fun clearAll() {
-        _continueList.value = emptyList()
-        _watchedEps.value = emptyMap()
-        prefs.edit().clear().commit()
+        scope.launch {
+            db.watchHistoryDao().clearAllContinue()
+            db.watchHistoryDao().clearAllWatched()
+        }
     }
+
+    // ═══ Helpers ═══
+
+    private fun ContinueWatchingEntity.toContinueItem() = ContinueItem(
+        slug = slug,
+        name = name,
+        thumbUrl = thumbUrl,
+        episodeIdx = episodeIdx,
+        episodeName = episodeName,
+        positionMs = positionMs,
+        durationMs = durationMs,
+        source = source,
+        lastWatched = lastWatched
+    )
 }

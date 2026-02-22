@@ -314,9 +314,9 @@ fun PlayerScreen(
                 // SuperStream: episode index = streamEpisode - 1 (0-based)
                 val saveEpIdx = if (source == "superstream") (streamEpisode - 1).coerceAtLeast(0) + currentEp else currentEp
                 val epName = episodes.getOrNull(currentEp)?.name ?: "Tập ${saveEpIdx + 1}"
-                WatchHistoryManager.saveProgress(
+                WatchHistoryManager.updateContinue(
                     slug = effectiveSlug, name = title, thumbUrl = "", source = source,
-                    server = server, episode = saveEpIdx, epName = epName,
+                    episodeIdx = saveEpIdx, episodeName = epName,
                     positionMs = pos, durationMs = dur
                 )
             }

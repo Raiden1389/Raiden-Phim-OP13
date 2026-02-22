@@ -21,6 +21,15 @@ class SearchViewModel : ViewModel() {
     private val _suggestions = MutableStateFlow<List<String>>(emptyList())
     val suggestions = _suggestions.asStateFlow()
 
+    /** Cache of history list for sync access in updateSuggestions */
+    private var _cachedHistory: List<String> = emptyList()
+
+    init {
+        viewModelScope.launch {
+            SearchHistoryManager.history.collect { _cachedHistory = it }
+        }
+    }
+
     private var searchJob: Job? = null
 
     fun search(query: String) {
@@ -40,13 +49,13 @@ class SearchViewModel : ViewModel() {
     private fun updateSuggestions(query: String) {
         if (query.length < 2) { _suggestions.value = emptyList(); return }
         val q = query.lowercase()
-        val history = SearchHistoryManager.history.value
+        val history = _cachedHistory
         val trending = TRENDING_KEYWORDS
 
         // Combine history + trending, filter by prefix match
         val combined = (history + trending)
             .filter { it.lowercase().contains(q) && it.lowercase() != q }
-            .distinct()
+            .distinctBy { it.lowercase() }
             .take(5)
         _suggestions.value = combined
     }

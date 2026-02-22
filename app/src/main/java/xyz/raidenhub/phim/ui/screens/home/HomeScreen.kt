@@ -52,8 +52,8 @@ fun HomeScreen(
     vm: HomeViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
-    val favorites by FavoriteManager.favorites.collectAsState()
-    val allContinue by WatchHistoryManager.continueList.collectAsState()
+    val favorites by FavoriteManager.favorites.collectAsState(initial = emptyList())
+    val allContinue by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
     val continueList = remember(allContinue) {
         allContinue.filter { it.source in listOf("ophim", "kkphim") }
     }
@@ -82,7 +82,7 @@ fun HomeScreen(
             val settingsGenres by SettingsManager.selectedGenres.collectAsState()
             val filterCount = settingsCountries.size + settingsGenres.size
             // H-6: section order state (collected in composable scope, usable in LazyListScope)
-            val sectionOrder by SectionOrderManager.order.collectAsState()
+            val sectionOrder by SectionOrderManager.order.collectAsState(initial = emptyList())
 
             // Filter helpers using Settings
             fun List<Movie>.applySettingsFilter(): List<Movie> {
@@ -152,7 +152,7 @@ fun HomeScreen(
 
                     // Hero Carousel — H-1: filter out hidden slugs
                     item {
-                        val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState()
+                        val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState(initial = emptySet())
                         val heroMovies = remember(d.newMovies, hiddenSlugs) {
                             d.newMovies.filter { it.slug !in hiddenSlugs }.take(5)
                         }

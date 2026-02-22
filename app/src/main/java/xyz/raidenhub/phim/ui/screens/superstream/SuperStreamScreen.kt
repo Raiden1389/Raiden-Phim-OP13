@@ -46,7 +46,7 @@ fun SuperStreamScreen(
     val isLoading by vm.isLoading.collectAsState()
 
     // Favorites — filter WatchlistManager for SuperStream items (slug starts with "ss_")
-    val watchlistItems by WatchlistManager.items.collectAsState()
+    val watchlistItems by WatchlistManager.items.collectAsState(initial = emptyList())
     val favorites = remember(watchlistItems) {
         watchlistItems.filter { it.source == "superstream" }
     }

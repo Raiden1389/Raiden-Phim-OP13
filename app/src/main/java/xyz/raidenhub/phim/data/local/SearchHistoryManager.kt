@@ -1,50 +1,47 @@
 package xyz.raidenhub.phim.data.local
 
 import android.content.Context
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import xyz.raidenhub.phim.data.db.AppDatabase
 
 /**
- * Manages search history using SharedPreferences.
- * Extracted from SearchScreen.kt during TD-4 (God Screen Split).
+ * SearchHistoryManager — migrated to Room (Phase 03).
+ * Bonus: count field enables #S-5 Dynamic Trending.
  */
 object SearchHistoryManager {
-    private const val PREF_NAME = "search_history"
-    private const val KEY = "recent"
-    private const val MAX_ITEMS = 15
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private lateinit var db: AppDatabase
 
-    private val _history = MutableStateFlow<List<String>>(emptyList())
-    val history = _history.asStateFlow()
-
-    fun init(context: Context) {
-        val prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-        _history.value = prefs.getString(KEY, null)?.split("|||")?.filter { it.isNotBlank() } ?: emptyList()
+    fun init(db: AppDatabase) {
+        this.db = db
     }
 
-    fun add(query: String, context: Context) {
+    /** Reactive list — 15 most recent, descending */
+    val history: Flow<List<String>>
+        get() = db.searchHistoryDao().getRecent(15).map { list -> list.map { it.query } }
+
+    /** Add search, update count if exists (upsert) — no Context needed */
+    fun add(query: String) {
         if (query.isBlank() || query.length < 2) return
-        val current = _history.value.toMutableList()
-        current.remove(query)
-        current.add(0, query.trim())
-        val trimmed = current.take(MAX_ITEMS)
-        _history.value = trimmed
-        save(context, trimmed)
+        scope.launch { db.searchHistoryDao().addSearch(query.trim()) }
     }
 
-    fun remove(query: String, context: Context) {
-        val current = _history.value.toMutableList()
-        current.remove(query)
-        _history.value = current
-        save(context, current)
+    /** Backward-compat overload (context ignored) */
+    fun add(query: String, @Suppress("UNUSED_PARAMETER") context: Context) = add(query)
+
+    fun remove(query: String) {
+        scope.launch { db.searchHistoryDao().delete(query) }
     }
 
-    fun clearAll(context: Context) {
-        _history.value = emptyList()
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit().clear().apply()
+    fun remove(query: String, @Suppress("UNUSED_PARAMETER") context: Context) = remove(query)
+
+    fun clearAll() {
+        scope.launch { db.searchHistoryDao().clearAll() }
     }
 
-    private fun save(context: Context, items: List<String>) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit().putString(KEY, items.joinToString("|||")).apply()
-    }
+    fun clearAll(@Suppress("UNUSED_PARAMETER") context: Context) = clearAll()
 }

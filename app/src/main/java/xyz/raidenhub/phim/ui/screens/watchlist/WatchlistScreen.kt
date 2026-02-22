@@ -41,7 +41,7 @@ fun WatchlistScreen(
     onBack: () -> Unit,
     onMovieClick: (String) -> Unit
 ) {
-    val items by WatchlistManager.items.collectAsState()
+    val items by WatchlistManager.items.collectAsState(initial = emptyList())
     val context = LocalContext.current
 
     Column(Modifier.fillMaxSize().background(C.Background)) {
@@ -143,7 +143,7 @@ fun PlaylistListScreen(
     onBack: () -> Unit,
     onPlaylistClick: (String, String) -> Unit // id, name
 ) {
-    val playlists by PlaylistManager.playlists.collectAsState()
+    val playlists by PlaylistManager.playlists.collectAsState(initial = emptyList())
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
     var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
@@ -297,7 +297,7 @@ fun PlaylistDetailScreen(
     onBack: () -> Unit,
     onMovieClick: (String) -> Unit
 ) {
-    val playlists by PlaylistManager.playlists.collectAsState()
+    val playlists by PlaylistManager.playlists.collectAsState(initial = emptyList())
     val playlist = playlists.find { it.id == playlistId }
 
     if (playlist == null) {

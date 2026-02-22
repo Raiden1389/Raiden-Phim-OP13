@@ -45,7 +45,7 @@ fun SearchScreen(
     val loading by vm.loading.collectAsState()
     val suggestions by vm.suggestions.collectAsState()
     val context = LocalContext.current
-    val history by SearchHistoryManager.history.collectAsState()
+    val history by SearchHistoryManager.history.collectAsState(initial = emptyList())
 
     // S-1: Filter state
     var filterYear by remember { mutableStateOf<Int?>(null) }
@@ -78,8 +78,7 @@ fun SearchScreen(
         }
     }
 
-    // Init history
-    LaunchedEffect(Unit) { SearchHistoryManager.init(context) }
+    // Init history — không cần, SearchHistoryManager đã init qua App.kt
 
     // #10 — Voice search launcher
     val voiceLauncher = rememberLauncherForActivityResult(

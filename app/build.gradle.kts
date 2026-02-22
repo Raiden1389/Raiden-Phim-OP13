@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.devtools.ksp")   // Room annotation processor
 }
 
 android {
@@ -12,8 +13,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 57
-        versionName = "1.20.1"
+        versionCode = 58
+        versionName = "1.20.2"
     }
 
     signingConfigs {
@@ -79,6 +80,12 @@ android {
         buildConfig = true
     }
 
+    // Room schema export — lưu JSON schema vào project, cần cho Room auto-migration
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
+        arg("room.incremental", "true")
+    }
+
     applicationVariants.all {
         val variant = this
         outputs.all {
@@ -123,6 +130,12 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // ═══ Room DB ═══
+    val roomVersion = "2.7.0"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")          // Coroutine + Flow support
+    ksp("androidx.room:room-compiler:$roomVersion")                 // KSP code generation
 
     // ═══ DataStore ═══
     implementation("androidx.datastore:datastore-preferences:1.2.0")
