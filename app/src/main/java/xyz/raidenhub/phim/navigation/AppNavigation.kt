@@ -39,7 +39,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 
 import xyz.raidenhub.phim.PlayerActivity
-import xyz.raidenhub.phim.ui.screens.anime.AnimeScreen
 import xyz.raidenhub.phim.ui.screens.category.CategoryScreen
 import xyz.raidenhub.phim.ui.screens.detail.DetailScreen
 import xyz.raidenhub.phim.ui.screens.genre.GenreHubScreen
@@ -75,30 +74,21 @@ fun AppNavigation() {
     val context = LocalContext.current
 
     // Helper: launch PlayerActivity
-    fun startPlayerActivity(slug: String, server: Int, episode: Int, positionMs: Long = 0L) {
+    fun startPlayerActivity(slug: String, server: Int, episode: Int, positionMs: Long = 0L, source: String = "kkphim") {
         context.startActivity(Intent(context, PlayerActivity::class.java).apply {
             putExtra("slug", slug)
             putExtra("server", server)
             putExtra("episode", episode)
             putExtra("positionMs", positionMs)
-            putExtra("source", "kkphim")
+            putExtra("source", source)
         })
     }
 
-    // Hướng B — Anime47 player
-    fun startAnime47PlayerActivity(episodeIds: IntArray, epIdx: Int, title: String) {
-        context.startActivity(Intent(context, PlayerActivity::class.java).apply {
-            putExtra("source", "anime47")
-            putExtra("episodeIds", episodeIds)
-            putExtra("episode", epIdx)
-            putExtra("animeTitle", title)
-        })
-    }
 
     // Hide bottom bar on non-tab screens
     val showBottomBar = currentRoute in listOf(
         Screen.Home.route, Screen.Search.route, Screen.Favorites.route,
-        Screen.Settings.route, Screen.WatchHistory.route, Screen.Anime.route,
+        Screen.Settings.route, Screen.WatchHistory.route,
         Screen.SuperStream.route
     )
 
@@ -143,19 +133,10 @@ fun AppNavigation() {
                     onMovieClick = { slug ->
                         navController.navigate(Screen.Detail.createRoute(slug))
                     },
-                    onContinue = { slug, server, ep, positionMs ->
-                        startPlayerActivity(slug, server, ep, positionMs)
+                    onContinue = { slug, server, ep, positionMs, source ->
+                        startPlayerActivity(slug, server, ep, positionMs, source)
                     },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                )
-            }
-
-            // 🎌 Anime tab
-            composable(Screen.Anime.route) {
-                AnimeScreen(
-                    onAnimeClick = { id, slug ->
-                        navController.navigate(Screen.AnimeDetail.createRoute(id, slug))
-                    }
                 )
             }
 
@@ -170,8 +151,8 @@ fun AppNavigation() {
                 WatchHistoryScreen(
                     onBack = { navController.popBackStack() },
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep ->
-                        startPlayerActivity(slug, server, ep)
+                    onContinue = { slug, server, ep, source ->
+                        startPlayerActivity(slug, server, ep, source = source)
                     }
                 )
             }
@@ -191,26 +172,6 @@ fun AppNavigation() {
                     onPlay = { s, sv, ep -> startPlayerActivity(s, sv, ep) },
                     onSeasonClick = { seasonSlug -> navController.navigate(Screen.Detail.createRoute(seasonSlug)) },
                     onMovieClick = { movieSlug -> navController.navigate(Screen.Detail.createRoute(movieSlug)) }
-                )
-            }
-
-            // #45 — AnimeDetail → Anime47 API detail
-            composable(
-                Screen.AnimeDetail.route,
-                arguments = listOf(
-                    navArgument("id") { type = NavType.IntType },
-                    navArgument("slug") { type = NavType.StringType }
-                )
-            ) { entry ->
-                val id = entry.arguments?.getInt("id") ?: 0
-                val slug = entry.arguments?.getString("slug") ?: ""
-            xyz.raidenhub.phim.ui.screens.anime.AnimeDetailScreen(
-                    animeId = id,
-                    slug = slug,
-                    onBack = { navController.popBackStack() },
-                    onPlayAnime47 = { ids, epIdx, title ->
-                        startAnime47PlayerActivity(ids, epIdx, title)
-                    }
                 )
             }
 
@@ -310,7 +271,6 @@ private data class NavItem(
 
 private val navItems = listOf(
     NavItem(Screen.Home.route, "Phim", Icons.Default.Home),
-    NavItem(Screen.Anime.route, "Anime", emoji = "🎌"),
     NavItem(Screen.SuperStream.route, "English", emoji = "🌍"),
     NavItem(Screen.Search.route, "Tìm", Icons.Default.Search),
     NavItem(Screen.WatchHistory.route, "Lịch sử", Icons.Default.History),

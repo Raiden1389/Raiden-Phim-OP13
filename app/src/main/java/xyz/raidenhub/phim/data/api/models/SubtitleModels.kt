@@ -36,7 +36,9 @@ data class ConsumetSubtitle(
 data class SubDLResponse(
     @SerializedName("status") val status: Boolean = false,
     @SerializedName("results") val results: List<SubDLResult> = emptyList(),
-    @SerializedName("subtitles") val subtitles: List<SubDLSubtitle> = emptyList()
+    @SerializedName("subtitles") val subtitles: List<SubDLSubtitle> = emptyList(),
+    @SerializedName("totalPages") val totalPages: Int = 1,
+    @SerializedName("currentPage") val currentPage: Int = 1
 )
 
 data class SubDLResult(

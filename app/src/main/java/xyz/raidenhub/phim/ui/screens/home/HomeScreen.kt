@@ -47,13 +47,16 @@ import xyz.raidenhub.phim.util.ImageUtils
 @Composable
 fun HomeScreen(
     onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long) -> Unit = { _, _, _, _ -> },
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit = { _, _, _, _, _ -> },
     onCategoryClick: (String, String) -> Unit,
     vm: HomeViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
     val favorites by FavoriteManager.favorites.collectAsState()
-    val continueList by WatchHistoryManager.continueList.collectAsState()
+    val allContinue by WatchHistoryManager.continueList.collectAsState()
+    val continueList = remember(allContinue) {
+        allContinue.filter { it.source in listOf("ophim", "kkphim") }
+    }
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
@@ -224,7 +227,7 @@ fun HomeScreen(
                                             .clip(RoundedCornerShape(12.dp))
                                             .combinedClickable(
                                                 onClick = {
-                                                    onContinue(item.slug, item.server, item.episode, item.positionMs)
+                                                    onContinue(item.slug, item.server, item.episode, item.positionMs, item.source)
                                                 },
                                                 onLongClick = {
                                                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)

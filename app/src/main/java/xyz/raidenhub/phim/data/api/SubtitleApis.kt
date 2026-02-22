@@ -13,11 +13,12 @@ interface SubDLApi {
         @Query("api_key") apiKey: String,
         @Query("film_name") filmName: String,
         @Query("languages") languages: String = "vi,en",
-        @Query("subs_per_page") subsPerPage: Int = 30,
+        @Query("subs_per_page") subsPerPage: Int = 60,
         @Query("type") type: String? = null,
         @Query("year") year: String? = null,
         @Query("season_number") seasonNumber: Int? = null,
-        @Query("episode_number") episodeNumber: Int? = null
+        @Query("episode_number") episodeNumber: Int? = null,
+        @Query("page") page: Int? = null
     ): SubDLResponse
 }
 

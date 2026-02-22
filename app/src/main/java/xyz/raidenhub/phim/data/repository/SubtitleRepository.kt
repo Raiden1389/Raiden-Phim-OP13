@@ -1,8 +1,11 @@
 package xyz.raidenhub.phim.data.repository
 
+import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import retrofit2.Retrofit
@@ -15,6 +18,8 @@ import xyz.raidenhub.phim.data.api.models.SubtitleResult
 import java.util.concurrent.TimeUnit
 
 object SubtitleRepository {
+
+    private const val TAG = "SubRepo"
 
     // ═══ API Keys (free tier) ═══
     private const val SUBDL_API_KEY = "TZl_QW7_oilBuLi_sFHsdXt9xEIbZoCE"
@@ -54,9 +59,53 @@ object SubtitleRepository {
             .create(SubSourceApi::class.java)
     }
 
+    // ═══ In-memory subtitle cache ═══
+    // Key: "filmName::type::season::languages" → all SubDL results for the season
+    private val subtitleCache = mutableMapOf<String, List<SubtitleResult>>()
+
+    private fun cacheKey(filmName: String, type: String?, season: Int?, languages: String) =
+        "${filmName.lowercase()}::${type ?: ""}::${season ?: ""}::$languages"
+
+    // Prefetch state for UI indicators
+    private val _prefetchReady = MutableStateFlow<String?>(null) // film key when ready
+    val prefetchReady = _prefetchReady.asStateFlow()
+
+    /**
+     * Pre-fetch subtitles for a season. Called from Detail Screen.
+     * Fetches all subs for the season (no episode filter) and caches them.
+     * When player later calls searchSubtitles, it hits cache → instant.
+     */
+    suspend fun prefetchSeason(
+        filmName: String,
+        type: String? = null,
+        season: Int? = null,
+        languages: String = "vi,en"
+    ) {
+        val key = cacheKey(filmName, type, season, languages)
+        if (subtitleCache.containsKey(key)) {
+            Log.d(TAG, "prefetch SKIP (cached): $key → ${subtitleCache[key]?.size} subs")
+            _prefetchReady.value = key
+            return
+        }
+        Log.d(TAG, "prefetch START: $key")
+        try {
+            val subs = coroutineScope {
+                if (SUBDL_API_KEY.isNotBlank()) {
+                    searchSubDL(filmName, null, type, season, null, languages)
+                } else emptyList()
+            }
+            subtitleCache[key] = subs
+            _prefetchReady.value = key
+            Log.d(TAG, "prefetch DONE: $key → ${subs.size} subs cached ✓")
+        } catch (e: Exception) {
+            Log.w(TAG, "prefetch FAILED: $key → ${e.message}")
+        }
+    }
+
     /**
      * Search subtitles from ALL sources simultaneously
      * Priority: Vietnamese > English > others
+     * Checks cache first for instant results.
      */
     suspend fun searchSubtitles(
         filmName: String,
@@ -64,6 +113,7 @@ object SubtitleRepository {
         type: String? = null,
         season: Int? = null,
         episode: Int? = null,
+        languages: String = "vi,en",
         consumetSubtitles: List<ConsumetSubtitle> = emptyList()
     ): List<SubtitleResult> = coroutineScope {
         val results = mutableListOf<SubtitleResult>()
@@ -79,35 +129,73 @@ object SubtitleRepository {
         }
         results.addAll(consumetSubs)
 
-        // Source 2, 3, 4: SubDL + OpenSubtitles + Subscene (parallel)
-        val deferredResults = listOfNotNull(
-            // SubDL
-            if (SUBDL_API_KEY.isNotBlank()) async {
-                searchSubDL(filmName, year, type, season, episode)
-            } else null,
+        // Check cache first (from prefetchSeason)
+        val key = cacheKey(filmName, type, season, languages)
+        val cached = subtitleCache[key]
+        if (cached != null) {
+            Log.d(TAG, "CACHE HIT ✓ $key → ${cached.size} subs (ep=$episode)")
+            // Use cached SubDL results, filter by episode if needed
+            val filtered = if (episode != null && episode > 0) {
+                val epSubs = cached.filter {
+                    it.fileName?.contains(Regex("(?i)S\\d+E0?${episode}\\b|\\bE0?${episode}\\b")) == true
+                }
+                epSubs.ifEmpty { cached }
+            } else cached
+            results.addAll(filtered)
+        } else {
+            Log.d(TAG, "CACHE MISS → fetching from APIs... ($key)")
+            // No cache → fetch from all sources in parallel
+            val deferredResults = listOfNotNull(
+                // SubDL
+                if (SUBDL_API_KEY.isNotBlank()) async {
+                    val subs = searchSubDL(filmName, year, type, season, episode, languages)
+                    // Cache the full results for future episode lookups
+                    subtitleCache[key] = subs
+                    // Filter for current episode
+                    if (episode != null && episode > 0) {
+                        val epSubs = subs.filter {
+                            it.fileName?.contains(Regex("(?i)S\\d+E0?${episode}\\b|\\bE0?${episode}\\b")) == true
+                        }
+                        epSubs.ifEmpty { subs }
+                    } else subs
+                } else null,
 
-            // OpenSubtitles
-            if (OPENSUBTITLES_API_KEY.isNotBlank()) async {
-                searchOpenSubtitles(filmName, year, type, season, episode)
-            } else null,
+                // OpenSubtitles
+                if (OPENSUBTITLES_API_KEY.isNotBlank()) async {
+                    searchOpenSubtitles(filmName, year, type, season, episode)
+                } else null,
 
-            // Subscene (scrape)
-            async {
-                searchSubscene(filmName)
-            },
+                // Subscene (scrape)
+                async {
+                    searchSubscene(filmName)
+                },
 
-            // SubSource
-            if (SUBSOURCE_API_KEY.isNotBlank()) async {
-                searchSubSource(filmName)
-            } else null
-        )
+                // SubSource
+                if (SUBSOURCE_API_KEY.isNotBlank()) async {
+                    searchSubSource(filmName)
+                } else null
+            )
 
-        deferredResults.awaitAll().forEach { results.addAll(it) }
+            deferredResults.awaitAll().forEach { results.addAll(it) }
+        }
 
-        // Sort: Vietnamese first, then English, then by download count
-        results.sortedWith(
+        // Deduplicate by download URL (each zip is unique even if release_name is the same)
+        val deduped = results.distinctBy { it.url }
+
+        // Cap duplicates: max 3 entries per release_name per source (prevent season packs flooding)
+        val capped = deduped.groupBy { "${it.source}::${it.fileName}" }
+            .flatMap { (_, group) -> group.take(3) }
+
+        // Sort: Vietnamese first → English → episode-specific over full-season → download count
+        capped.sortedWith(
             compareByDescending<SubtitleResult> { it.language == "vi" }
                 .thenByDescending { it.language == "en" }
+                .thenByDescending {
+                    // Prefer episode-specific: release_name contains S01E04 pattern or "Episode"
+                    it.fileName?.let { name ->
+                        name.contains(Regex("(?i)S\\d+E\\d+|\\bE\\d+\\b|episode|1x\\d+"))
+                    } ?: false
+                }
                 .thenByDescending { it.downloadCount }
         )
     }
@@ -129,27 +217,61 @@ object SubtitleRepository {
         year: String?,
         type: String?,
         season: Int?,
-        episode: Int?
+        episode: Int?,
+        languages: String = "vi,en"
     ): List<SubtitleResult> {
         return try {
-            val response = subDLApi.search(
-                apiKey = SUBDL_API_KEY,
-                filmName = filmName,
-                languages = "vi,en",
-                type = type,
-                year = year,
-                seasonNumber = season,
-                episodeNumber = episode
-            )
-            response.subtitles.map { sub ->
-                SubtitleResult(
-                    url = "https://dl.subdl.com${sub.url}",
-                    language = mapSubDLLanguage(sub.lang),
-                    languageLabel = sub.language.ifBlank { sub.lang },
-                    source = "SubDL",
-                    fileName = sub.releaseName,
-                    isHearingImpaired = sub.hearingImpaired
+            coroutineScope {
+                // Fetch page 1
+                val page1 = subDLApi.search(
+                    apiKey = SUBDL_API_KEY,
+                    filmName = filmName,
+                    languages = languages,
+                    type = type,
+                    year = year,
+                    seasonNumber = season,
+                    episodeNumber = episode,
+                    page = 1
                 )
+                val allSubs = page1.subtitles.toMutableList()
+
+                // Fetch remaining pages IN PARALLEL (max 5 total)
+                val maxPages = page1.totalPages.coerceAtMost(5)
+                if (maxPages > 1) {
+                    val extraPages = (2..maxPages).map { p ->
+                        async {
+                            subDLApi.search(
+                                apiKey = SUBDL_API_KEY,
+                                filmName = filmName,
+                                languages = languages,
+                                type = type,
+                                year = year,
+                                seasonNumber = season,
+                                episodeNumber = episode,
+                                page = p
+                            )
+                        }
+                    }
+                    extraPages.awaitAll().forEach { allSubs.addAll(it.subtitles) }
+                }
+
+                // When searching specific episode, prefer episode-specific subs
+                val filtered = if (episode != null && episode > 0) {
+                    val episodeSubs = allSubs.filter { it.episode == episode }
+                    episodeSubs.ifEmpty { allSubs } // fallback if no exact match
+                } else {
+                    allSubs
+                }
+                filtered.map { sub ->
+                    SubtitleResult(
+                        url = "https://dl.subdl.com${sub.url}",
+                        language = mapSubDLLanguage(sub.lang),
+                        languageLabel = sub.language.ifBlank { sub.lang },
+                        source = "SubDL",
+                        fileName = sub.releaseName,
+                        isHearingImpaired = sub.hearingImpaired
+                    )
+                }
             }
         } catch (e: Exception) {
             emptyList()

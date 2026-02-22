@@ -29,7 +29,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.PlayerActivity
 import xyz.raidenhub.phim.data.api.models.*
+import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
+import xyz.raidenhub.phim.data.repository.SubtitleRepository
 import xyz.raidenhub.phim.ui.theme.C
 
 /**
@@ -58,6 +60,27 @@ fun SuperStreamDetailScreen(
         vm.loadDetail(tmdbId, type)
     }
 
+    // Pre-fetch subtitles when title + season is known (background, silent)
+    var subsReady by remember { mutableStateOf(false) }
+    val actualSeasonNum = tmdbSeasons.getOrNull(selectedSeason)?.seasonNumber
+    LaunchedEffect(state, actualSeasonNum) {
+        val title = when (val s = state) {
+            is DetailState.MovieSuccess -> s.movie.title
+            is DetailState.TvSuccess -> s.tv.name
+            else -> null
+        }
+        if (title != null) {
+            subsReady = false
+            SubtitleRepository.prefetchSeason(
+                filmName = title,
+                type = type,
+                season = if (type == "tv") actualSeasonNum else null,
+                languages = "en"
+            )
+            subsReady = true
+        }
+    }
+
     // Handle stream ready → launch player
     LaunchedEffect(streamState) {
         val ss = streamState
@@ -69,6 +92,13 @@ fun SuperStreamDetailScreen(
                 putExtra("stream_season", ss.season)
                 putExtra("stream_episode", ss.episode)
                 putExtra("stream_type", type) // "movie" or "tv"
+                putExtra("tmdb_id", tmdbId)
+                putExtra("total_episodes", tmdbEpisodes.size)
+                // Pass share key so player can fetch next episodes without re-lookup
+                val avail = availability
+                if (avail is AvailabilityState.Available) {
+                    putExtra("share_key", avail.shareKey)
+                }
                 putExtra("title", when (val s = state) {
                     is DetailState.MovieSuccess -> s.movie.title
                     is DetailState.TvSuccess -> s.tv.name
@@ -154,12 +184,18 @@ fun SuperStreamDetailScreen(
                     availability = availability,
                     streamState = streamState,
                     statusMessage = statusMessage,
+                    subsReady = subsReady,
                     onPlay = { vm.playMovie() },
                     modifier = Modifier.padding(padding)
                 )
             }
 
             is DetailState.TvSuccess -> {
+                // Watched episodes tracking
+                val watchSlug = "ss_tv_${tmdbId}"
+                val watchedMap by WatchHistoryManager.watchedEps.collectAsState()
+                val watchedSet = watchedMap[watchSlug] ?: emptySet()
+
                 TvDetailContent(
                     tv = s.tv,
                     availability = availability,
@@ -168,6 +204,8 @@ fun SuperStreamDetailScreen(
                     selectedSeason = selectedSeason,
                     streamState = streamState,
                     statusMessage = statusMessage,
+                    watchedSet = watchedSet,
+                    subsReady = subsReady,
                     onSeasonSelect = { vm.selectSeason(it) },
                     onEpisodeClick = { ep ->
                         val seasonNum = tmdbSeasons.getOrNull(selectedSeason)?.seasonNumber ?: 1
@@ -186,6 +224,7 @@ private fun MovieDetailContent(
     availability: AvailabilityState,
     streamState: StreamState,
     statusMessage: String,
+    subsReady: Boolean = false,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -308,6 +347,8 @@ private fun TvDetailContent(
     selectedSeason: Int,
     streamState: StreamState,
     statusMessage: String,
+    watchedSet: Set<Int> = emptySet(),
+    subsReady: Boolean = false,
     onSeasonSelect: (Int) -> Unit,
     onEpisodeClick: (TmdbEpisode) -> Unit,
     modifier: Modifier = Modifier
@@ -392,6 +433,18 @@ private fun TvDetailContent(
             }
         }
 
+        // Subtitle prefetch indicator
+        if (subsReady) {
+            item {
+                Text(
+                    "🔤 Subtitles ready",
+                    color = Color(0xFF4CAF50),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+            }
+        }
+
         // Season selector (TMDB seasons)
         if (tmdbSeasons.isNotEmpty()) {
             item {
@@ -447,8 +500,11 @@ private fun TvDetailContent(
             }
 
             items(tmdbEpisodes, key = { it.id }) { ep ->
+                val epIdx = ep.episodeNumber - 1 // 0-based index
+                val isWatched = watchedSet.contains(epIdx)
                 TmdbEpisodeItem(
                     episode = ep,
+                    isWatched = isWatched,
                     onClick = { onEpisodeClick(ep) }
                 )
             }
@@ -474,6 +530,7 @@ private fun TvDetailContent(
 @Composable
 private fun TmdbEpisodeItem(
     episode: TmdbEpisode,
+    isWatched: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
@@ -517,10 +574,10 @@ private fun TmdbEpisodeItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                "Episode ${episode.episodeNumber}",
-                color = C.TextPrimary,
+                if (isWatched) "✓ Episode ${episode.episodeNumber}" else "Episode ${episode.episodeNumber}",
+                color = if (isWatched) C.Primary else C.TextPrimary,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = if (isWatched) FontWeight.Bold else FontWeight.SemiBold
             )
 
             if (episode.name.isNotBlank()) {

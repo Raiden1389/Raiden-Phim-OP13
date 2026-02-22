@@ -1,5 +1,31 @@
 # Raiden Phim — Changelog
 
+## v1.20.1 — 2026-02-22 (Remove Anime Tab)
+
+### 🗑️ Removed — Anime Tab (Anime47)
+- **Xoá hoàn toàn tab 🎌 Anime** khỏi bottom navigation bar
+- Lý do: Tập trung vào nội dung Vietnamese (OPhim/KKPhim) và English (SuperStream)
+
+#### Files Deleted (6)
+- `AnimeScreen.kt` — UI tab Anime
+- `AnimeDetailScreen.kt` — UI detail anime
+- `AnimeRepository.kt` — Repository layer
+- `Anime47Api.kt` — Retrofit interface
+- `Anime47Models.kt` — Data models
+- `SafeTypeAdapterFactory.kt` — Gson crash protection (chỉ dùng cho Anime47)
+
+#### Files Modified (8)
+| File | Thay đổi |
+|------|---------|
+| `AppNavigation.kt` | Xoá tab navItem, routes Anime+AnimeDetail, helper `startAnime47PlayerActivity` |
+| `Screen.kt` | Xoá `Anime`, `AnimeDetail` sealed objects |
+| `ApiClient.kt` | Xoá `anime47` + `lenientGson` lazy vals |
+| `Constants.kt` | Xoá `ANIME47_BASE_URL` |
+| `PlayerActivity.kt` | Xoá `episodeIds`/`animeTitle` extras |
+| `PlayerViewModel.kt` | Xoá `loadAnime47()`, `fetchAnime47Stream()` |
+| `PlayerScreen.kt` | Xoá params + logic branches anime47 |
+| `HomeScreen.kt` | Xoá `anime47` khỏi continue watching source filter |
+
 ## v1.20.0 — 2026-02-22 (SuperStream English Content)
 
 ### 🌐 NEW — SuperStream Tab (English Movies & TV Shows)

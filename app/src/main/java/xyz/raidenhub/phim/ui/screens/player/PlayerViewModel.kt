@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Episode
-import xyz.raidenhub.phim.data.repository.AnimeRepository
 import xyz.raidenhub.phim.data.repository.MovieRepository
+import xyz.raidenhub.phim.data.repository.SuperStreamRepository
 import xyz.raidenhub.phim.util.Constants
 
 class PlayerViewModel : ViewModel() {
@@ -45,64 +45,70 @@ class PlayerViewModel : ViewModel() {
     fun hasNext() = _currentEp.value < _episodes.value.size - 1
     fun nextEp() { if (hasNext()) _currentEp.value++ }
 
+    // ═══ SuperStream vars ═══
+    private var ssTmdbId = 0
+    private var ssSeason = 0
+    private var ssShareKey: String? = null
+    private var ssTitle: String? = null
+
     /**
-     * Hướng B — Anime47 source:
-     * episodeIds = danh sách ID của tất cả tập (từ latestEpisodes)
-     * epIdx      = index tập muốn phát
-     *
-     * Flow: fetch tập đang chọn → bestStreamUrl → build Episode list
-     * Tập kế: fetch on-demand khi user nhấn next
+     * SuperStream source: direct m3u8 URL.
+     * For TV: builds placeholder episode list for the season, fetch current ep immediately.
+     * For Movie: single-episode list (no next).
      */
-    fun loadAnime47(episodeIds: IntArray, epIdx: Int, animeTitle: String = "") {
-        viewModelScope.launch {
-            _title.value = animeTitle
-            val safeIdx = epIdx.coerceIn(0, (episodeIds.size - 1).coerceAtLeast(0))
-            _currentEp.value = safeIdx
-            // Build Episode placeholder list với id encoded vào slug (fetch lazy)
-            // Format slug: "anime47::{episodeId}" để PlayerScreen biết cách fetch
-            val placeholders = episodeIds.mapIndexed { i, id ->
+    fun loadSuperStream(
+        url: String,
+        videoTitle: String = "",
+        tmdbId: Int = 0,
+        season: Int = 0,
+        episode: Int = 0,
+        type: String = "",
+        totalEpisodes: Int = 0,
+        shareKey: String = ""
+    ) {
+        _title.value = videoTitle
+        ssTmdbId = tmdbId
+        ssSeason = season
+        ssShareKey = shareKey.ifBlank { null }
+        ssTitle = videoTitle.ifBlank { null }
+
+        if (type == "tv" && totalEpisodes > 0) {
+            // Build placeholder list for all episodes in this season
+            val placeholders = (1..totalEpisodes).map { ep ->
                 Episode(
-                    name     = "Tập ${i + 1}",
-                    slug     = "anime47::$id",
+                    name = "Episode $ep",
+                    slug = "ss::${tmdbId}::${season}::${ep}",
                     linkEmbed = "",
-                    linkM3u8  = ""  // sẽ fetch khi play
+                    linkM3u8 = if (ep == episode) url else "" // Current ep has URL, others are lazy
                 )
             }
             _episodes.value = placeholders
-            // Fetch ngay stream cho tập hiện tại
-            fetchAnime47Stream(episodeIds[safeIdx])
+            _currentEp.value = episode - 1 // 0-based index
+        } else {
+            // Movie or unknown → single episode
+            _episodes.value = listOf(
+                Episode(
+                    name = videoTitle,
+                    slug = "direct",
+                    linkEmbed = "",
+                    linkM3u8 = url
+                )
+            )
+            _currentEp.value = 0
         }
     }
 
-    /** Fetch M3U8 cho episode id, update episode trong list */
-    fun fetchAnime47Stream(episodeId: Int) {
+    /** Fetch stream URL for a SuperStream episode (lazy, called by prefetch or next-ep) */
+    fun fetchSuperStreamEp(season: Int, episode: Int) {
         viewModelScope.launch {
-            AnimeRepository.getEpisodeStream(episodeId)
+            SuperStreamRepository.streamTvEpisode(ssTmdbId, season, episode, ssTitle, ssShareKey)
                 .onSuccess { stream ->
-                    val url = stream.bestStreamUrl
-                    // Update placeholder → real M3U8
+                    val slug = "ss::${ssTmdbId}::${season}::${episode}"
                     _episodes.value = _episodes.value.map { ep ->
-                        if (ep.slug == "anime47::$episodeId") ep.copy(linkM3u8 = url) else ep
+                        if (ep.slug == slug) ep.copy(linkM3u8 = stream.url) else ep
                     }
                 }
         }
-    }
-
-    /**
-     * SuperStream source: direct m3u8 URL, no fetch needed.
-     * Creates a single-episode list so ExoPlayer picks it up immediately.
-     */
-    fun loadDirectStream(url: String, videoTitle: String = "") {
-        _title.value = videoTitle
-        _currentEp.value = 0
-        _episodes.value = listOf(
-            Episode(
-                name = videoTitle,
-                slug = "direct",
-                linkEmbed = "",
-                linkM3u8 = url
-            )
-        )
     }
 }
 

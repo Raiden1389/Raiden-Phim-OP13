@@ -22,9 +22,7 @@ import xyz.raidenhub.phim.ui.theme.RaidenPhimTheme
  *  server      — server index
  *  episode     — episode index
  *  positionMs  — resume position
- *  source      — "kkphim" (default) | "anime47"
- *  episodeIds  — IntArray (chỉ dùng khi source=anime47)
- *  animeTitle  — String  (chỉ dùng khi source=anime47)
+ *  source      — "kkphim" (default) | "superstream"
  */
 class PlayerActivity : ComponentActivity() {
 
@@ -64,15 +62,15 @@ class PlayerActivity : ComponentActivity() {
         val server      = intent.getIntExtra("server", 0)
         val episode     = intent.getIntExtra("episode", 0)
         val positionMs  = intent.getLongExtra("positionMs", 0L)
-        // Anime47 extras
-        val episodeIds  = intent.getIntArrayExtra("episodeIds") ?: intArrayOf()
-        val animeTitle  = intent.getStringExtra("animeTitle") ?: ""
         // SuperStream extras
         val streamUrl     = intent.getStringExtra("stream_url") ?: ""
         val streamTitle   = intent.getStringExtra("title") ?: ""
         val streamSeason  = intent.getIntExtra("stream_season", 0)
         val streamEpisode = intent.getIntExtra("stream_episode", 0)
         val streamType    = intent.getStringExtra("stream_type") ?: ""
+        val tmdbId        = intent.getIntExtra("tmdb_id", 0)
+        val totalEpisodes = intent.getIntExtra("total_episodes", 0)
+        val shareKey      = intent.getStringExtra("share_key") ?: ""
 
         setContent {
             RaidenPhimTheme {
@@ -82,13 +80,14 @@ class PlayerActivity : ComponentActivity() {
                     episode        = episode,
                     startPositionMs = positionMs,
                     source         = source,
-                    episodeIds     = episodeIds,
-                    animeTitle     = animeTitle,
                     streamUrl      = streamUrl,
                     streamTitle    = streamTitle,
                     streamSeason   = streamSeason,
                     streamEpisode  = streamEpisode,
                     streamType     = streamType,
+                    tmdbId         = tmdbId,
+                    totalEpisodes  = totalEpisodes,
+                    shareKey       = shareKey,
                     onBack         = { finish() }
                 )
             }

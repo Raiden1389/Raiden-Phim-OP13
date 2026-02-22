@@ -71,14 +71,15 @@ fun PlayerScreen(
     server: Int,
     episode: Int,
     startPositionMs: Long = 0L,
-    source: String = "kkphim",          // "kkphim" | "anime47" | "superstream"
-    episodeIds: IntArray = intArrayOf(), // Anime47: danh sách ep IDs
-    animeTitle: String = "",            // Anime47: tên anime cho title bar
+    source: String = "kkphim",          // "kkphim" | "superstream"
     streamUrl: String = "",             // SuperStream: direct m3u8 URL
     streamTitle: String = "",           // SuperStream: video title
     streamSeason: Int = 0,             // SuperStream: season number (for sub search)
     streamEpisode: Int = 0,            // SuperStream: episode number (for sub search)
     streamType: String = "",           // SuperStream: "movie" or "tv"
+    tmdbId: Int = 0,                   // SuperStream: TMDB ID for fetching next episode
+    totalEpisodes: Int = 0,            // SuperStream: total episodes in season
+    shareKey: String = "",             // SuperStream: FebBox share key for next episode
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
@@ -144,27 +145,50 @@ fun PlayerScreen(
         }
     }
 
+    // Effective slug for SuperStream (slug is empty for SS content)
+    val effectiveSlug = remember(slug, source, tmdbId, streamType) {
+        if (source == "superstream" && slug.isBlank()) "ss_${streamType}_${tmdbId}"
+        else slug
+    }
+
     // ═══ LOAD — branch theo source ═══
     LaunchedEffect(slug, source) {
         if (source == "superstream" && streamUrl.isNotBlank()) {
-            vm.loadDirectStream(streamUrl, streamTitle)
-        } else if (source == "anime47" && episodeIds.isNotEmpty()) {
-            vm.loadAnime47(episodeIds, episode, animeTitle)
+            vm.loadSuperStream(streamUrl, streamTitle, tmdbId, streamSeason, streamEpisode, streamType, totalEpisodes, shareKey)
         } else {
             vm.load(slug, server, episode)
         }
     }
 
-    // Pre-fetch stream khi chuyển tập (chỉ Anime47)
+    // Pre-fetch stream khi chuyển tập (Anime47 + SuperStream)
     val episodesForPrefetch by vm.episodes.collectAsState()
-    LaunchedEffect(episodesForPrefetch) {
-        if (source == "anime47") {
-            // Pre-fetch tập tiếp theo nếu chưa có M3U8
-            val nextIdx = vm.currentEp.value + 1
-            val nextEp = episodesForPrefetch.getOrNull(nextIdx)
-            if (nextEp != null && nextEp.linkM3u8.isBlank() && nextEp.slug.startsWith("anime47::")) {
-                val nextId = nextEp.slug.removePrefix("anime47::").toIntOrNull() ?: return@LaunchedEffect
-                vm.fetchAnime47Stream(nextId)
+    val currentEpIdx by vm.currentEp.collectAsState()
+    
+    LaunchedEffect(episodesForPrefetch, currentEpIdx) {
+        // 1. Kiểm tra tập HIỆN TẠI (nếu chưa có link thì phải lấy ngay)
+        val curEp = episodesForPrefetch.getOrNull(currentEpIdx)
+        if (curEp != null && curEp.linkM3u8.isBlank()) {
+            if (source == "superstream" && curEp.slug.startsWith("ss::")) {
+                val parts = curEp.slug.split("::")
+                if (parts.size == 4) {
+                    val s = parts[2].toIntOrNull() ?: return@LaunchedEffect
+                    val e = parts[3].toIntOrNull() ?: return@LaunchedEffect
+                    vm.fetchSuperStreamEp(s, e)
+                }
+            }
+        }
+
+        // 2. Kiểm tra tập KẾ TIẾP (prefetch)
+        val nextIdx = currentEpIdx + 1
+        val nextEp = episodesForPrefetch.getOrNull(nextIdx)
+        if (nextEp != null && nextEp.linkM3u8.isBlank()) {
+            if (source == "superstream" && nextEp.slug.startsWith("ss::")) {
+                val parts = nextEp.slug.split("::")
+                if (parts.size == 4) {
+                    val s = parts[2].toIntOrNull() ?: return@LaunchedEffect
+                    val e = parts[3].toIntOrNull() ?: return@LaunchedEffect
+                    vm.fetchSuperStreamEp(s, e)
+                }
             }
         }
     }
@@ -183,11 +207,13 @@ fun PlayerScreen(
 
     // Play current episode — seek to saved position only on initial episode load
     var hasSeekOnce by remember { mutableStateOf(false) }
+    var lastLoadedUrl by remember { mutableStateOf("") }
+
     LaunchedEffect(currentEp, episodes) {
         if (episodes.isNotEmpty()) {
             val ep = episodes.getOrNull(currentEp) ?: return@LaunchedEffect
             val url = ep.linkM3u8
-            if (url.isNotBlank()) {
+            if (url.isNotBlank() && url != lastLoadedUrl) {
                 player.setMediaItem(MediaItem.fromUri(url))
                 player.prepare()
                 // Seek to saved position only on first episode load
@@ -197,6 +223,7 @@ fun PlayerScreen(
                 }
                 player.playWhenReady = true
                 player.play()
+                lastLoadedUrl = url
             }
         }
     }
@@ -284,10 +311,12 @@ fun PlayerScreen(
             val pos = player.currentPosition
             val dur = player.duration
             if (dur > 0 && pos > 0) {
-                val epName = episodes.getOrNull(currentEp)?.name ?: "Tập ${currentEp + 1}"
+                // SuperStream: episode index = streamEpisode - 1 (0-based)
+                val saveEpIdx = if (source == "superstream") (streamEpisode - 1).coerceAtLeast(0) + currentEp else currentEp
+                val epName = episodes.getOrNull(currentEp)?.name ?: "Tập ${saveEpIdx + 1}"
                 WatchHistoryManager.saveProgress(
-                    slug = slug, name = title, thumbUrl = "", source = "",
-                    server = server, episode = currentEp, epName = epName,
+                    slug = effectiveSlug, name = title, thumbUrl = "", source = source,
+                    server = server, episode = saveEpIdx, epName = epName,
                     positionMs = pos, durationMs = dur
                 )
             }
@@ -1229,7 +1258,8 @@ fun PlayerScreen(
                     filmName = searchTitle,
                     type = streamType.ifBlank { null },
                     season = streamSeason.takeIf { it > 0 },
-                    episode = streamEpisode.takeIf { it > 0 }
+                    episode = streamEpisode.takeIf { it > 0 },
+                    languages = if (source == "superstream") "en" else "vi,en"
                 )
             } catch (_: Exception) {}
             isSearching = false
@@ -1310,7 +1340,7 @@ fun PlayerScreen(
                         Text("Không tìm thấy phụ đề.", color = Color.Gray, fontSize = 13.sp)
                     } else {
                         androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 260.dp)) {
-                            items(subtitleResults.size.coerceAtMost(15)) { idx ->
+                            items(subtitleResults.size.coerceAtMost(30)) { idx ->
                                 val sub = subtitleResults[idx]
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
@@ -1337,12 +1367,13 @@ fun PlayerScreen(
                                                     .setSelectionFlags(MediaC.SELECTION_FLAG_DEFAULT)
                                                     .build()
                                                 val pos = player.currentPosition
+                                                val wasPlaying = player.playWhenReady
                                                 val cur = player.currentMediaItem
                                                 if (cur != null) {
                                                     player.setMediaItem(cur.buildUpon()
-                                                        .setSubtitleConfigurations(listOf(subCfg)).build())
+                                                        .setSubtitleConfigurations(listOf(subCfg)).build(), pos)
+                                                    player.playWhenReady = wasPlaying
                                                     player.prepare()
-                                                    player.seekTo(pos)
                                                     player.trackSelectionParameters = player.trackSelectionParameters
                                                         .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, false).build()
                                                 }
