@@ -39,6 +39,8 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
+import xyz.raidenhub.phim.data.local.HomeLayout
+import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.ui.components.MovieCard
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
@@ -233,6 +235,9 @@ fun MovieRowSection(
 ) {
     if (movies.isEmpty()) return
 
+    // CN-1: Consume homeLayout from SettingsManager
+    val homeLayout by SettingsManager.homeLayout.collectAsState()
+
     Column(modifier = Modifier.padding(top = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -244,27 +249,91 @@ fun MovieRowSection(
                 modifier = Modifier.clickable(onClick = onSeeMore))
         }
 
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            items(movies.take(12), key = { it.slug }) { movie ->
-                // H-7: Long press → Quick Play từ đầu (positionMs = 0)
-                Box(modifier = Modifier.width(130.dp)) {
-                    MovieCard(
-                        movie = movie,
-                        onClick = { onMovieClick(movie.slug) },
-                        onLongClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onContinue(movie.slug, 0, 0, 0L, "ophim")
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+        when (homeLayout) {
+            HomeLayout.LIST -> {
+                // CN-1 LIST: Vertical list rows
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    movies.take(8).forEach { movie ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(C.Surface.copy(alpha = 0.6f))
+                                .clickable { onMovieClick(movie.slug) }
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Thumbnail
+                            AsyncImage(
+                                model = ImageUtils.cardImage(movie.thumbUrl, "ophim"),
+                                contentDescription = movie.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .width(54.dp)
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(6.dp))
+                            )
+                            // Text info
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    movie.name,
+                                    color = C.TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    movie.country.firstOrNull()?.name?.let { "🌍 $it" }
+                                        ?: if (movie.year > 0) "${movie.year}" else "",
+                                    color = C.TextSecondary,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+                                if (!movie.episodeCurrent.isNullOrBlank()) {
+                                    Text(
+                                        movie.episodeCurrent,
+                                        color = C.Primary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            else -> {
+                // CN-1 COMFORTABLE (150dp) or COMPACT (110dp)
+                val cardWidth = if (homeLayout == HomeLayout.COMFORTABLE) 150.dp else 110.dp
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(movies.take(12), key = { it.slug }) { movie ->
+                        Box(modifier = Modifier.width(cardWidth)) {
+                            MovieCard(
+                                movie = movie,
+                                onClick = { onMovieClick(movie.slug) },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onContinue(movie.slug, 0, 0, 0L, "ophim")
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+
 
 // ═══ Shimmer Skeleton Loading ═══
 

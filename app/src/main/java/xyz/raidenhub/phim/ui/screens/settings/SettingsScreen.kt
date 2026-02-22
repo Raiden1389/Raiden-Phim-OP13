@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import xyz.raidenhub.phim.BuildConfig
 import xyz.raidenhub.phim.data.local.FavoriteManager
+import xyz.raidenhub.phim.data.local.HomeLayout
 import xyz.raidenhub.phim.data.local.HeroFilterManager
 import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
@@ -48,6 +49,7 @@ fun SettingsScreen() {
     val autoPlayNext by SettingsManager.autoPlayNext.collectAsState()
     val defaultQuality by SettingsManager.defaultQuality.collectAsState()
     val notifyNewEpisode by SettingsManager.notifyNewEpisode.collectAsState()
+    val homeLayout by SettingsManager.homeLayout.collectAsState()   // CN-1
     val context = LocalContext.current
     var showQualitySheet by remember { mutableStateOf(false) }
 
@@ -68,6 +70,74 @@ fun SettingsScreen() {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
+        }
+
+        // ═══ CN-1: Giao diện ═══
+        item {
+            Text("🎨 Giao diện", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // Home Layout picker — 3 options inline
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .padding(16.dp)
+            ) {
+                Text("🏠 Bố cục trang chủ", color = C.TextPrimary, fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("Chọn cách hiển thị phim trên trang chủ", color = C.TextSecondary, fontFamily = InterFamily, fontSize = 12.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HomeLayout.values().forEach { layout ->
+                        val isSelected = homeLayout == layout
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSelected) C.Primary.copy(alpha = 0.15f)
+                                    else C.Background
+                                )
+                                .then(
+                                    if (isSelected) Modifier
+                                    else Modifier
+                                )
+                                .clickable { SettingsManager.setHomeLayout(layout) }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(layout.emoji, fontSize = 20.sp)
+                                Text(
+                                    layout.label,
+                                    color = if (isSelected) C.Primary else C.TextSecondary,
+                                    fontFamily = InterFamily,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(20.dp)
+                                            .height(2.dp)
+                                            .background(C.Primary, RoundedCornerShape(1.dp))
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Divider
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(24.dp))
         }
 
         // ═══ Playback Settings ═══

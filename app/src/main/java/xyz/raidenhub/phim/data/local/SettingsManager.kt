@@ -5,6 +5,13 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+// CN-1: Home layout modes
+enum class HomeLayout(val label: String, val emoji: String) {
+    COMFORTABLE("Card lớn", "🖼️"),  // 2-col — default, best visual
+    COMPACT("Lưới dày", "⋮"),              // 3-col — more content per screen
+    LIST("Danh sách", "☰")               // 1-col — title + thumbnail row
+}
+
 object SettingsManager {
     private lateinit var prefs: SharedPreferences
 
@@ -28,6 +35,10 @@ object SettingsManager {
     // ═══ N-1: New episode notifications ═══
     private val _notifyNewEpisode = MutableStateFlow(false)
     val notifyNewEpisode = _notifyNewEpisode.asStateFlow()
+
+    // ═══ CN-1: Home Layout ═══
+    private val _homeLayout = MutableStateFlow(HomeLayout.COMFORTABLE)
+    val homeLayout = _homeLayout.asStateFlow()
 
     val activeFilterCount: Int
         get() = _selectedCountries.value.size + _selectedGenres.value.size
@@ -76,6 +87,9 @@ object SettingsManager {
         _autoPlayNext.value = prefs.getBoolean("autoPlayNext", true)
         _defaultQuality.value = prefs.getString("defaultQuality", "auto") ?: "auto"
         _notifyNewEpisode.value = prefs.getBoolean("notifyNewEpisode", false)
+        _homeLayout.value = HomeLayout.values().find {
+            it.name == prefs.getString("homeLayout", null)
+        } ?: HomeLayout.COMFORTABLE
     }
 
     fun toggleCountry(slug: String) {
@@ -105,6 +119,11 @@ object SettingsManager {
     fun setNotifyNewEpisode(enabled: Boolean) {
         _notifyNewEpisode.value = enabled
         prefs.edit().putBoolean("notifyNewEpisode", enabled).apply()
+    }
+
+    fun setHomeLayout(layout: HomeLayout) {
+        _homeLayout.value = layout
+        prefs.edit().putString("homeLayout", layout.name).apply()
     }
 
     fun clearCountries() {
