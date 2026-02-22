@@ -1,6 +1,8 @@
 package xyz.raidenhub.phim.navigation
 
 sealed class Screen(val route: String) {
+    // CN-2: Splash
+    data object Splash : Screen("splash")
     data object Home : Screen("home")
     data object Detail : Screen("detail/{slug}") {
         fun createRoute(slug: String) = "detail/$slug"

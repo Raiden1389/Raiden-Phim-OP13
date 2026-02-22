@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- CN-2: "My Theater" branding — hiện ở phía dưới splash screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Gradient glow dưới cùng -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="90"
+                android:startColor="#00000000"
+                android:endColor="#CC7C3AED" />
+        </shape>
+    </item>
+    <!-- Text "Raiden's Theater" sẽ được vẽ qua vector/text -->
+    <item android:drawable="@drawable/splash_branding_text" />
+</layer-list>

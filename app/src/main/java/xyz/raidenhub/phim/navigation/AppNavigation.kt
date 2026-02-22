@@ -46,6 +46,7 @@ import xyz.raidenhub.phim.ui.screens.history.WatchHistoryScreen
 import xyz.raidenhub.phim.ui.screens.home.HomeScreen
 import xyz.raidenhub.phim.ui.screens.search.SearchScreen
 import xyz.raidenhub.phim.ui.screens.settings.SettingsScreen
+import xyz.raidenhub.phim.ui.screens.splash.SplashScreen
 import xyz.raidenhub.phim.ui.screens.superstream.SuperStreamScreen
 import xyz.raidenhub.phim.ui.screens.superstream.SuperStreamDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistDetailScreen
@@ -53,6 +54,7 @@ import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistListScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.InterFamily
+
 
 // #39 — Refined transition specs (premium feel)
 private val enterAnim = fadeIn(tween(350)) +
@@ -120,7 +122,7 @@ fun AppNavigation() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Screen.Splash.route,
             modifier = Modifier.padding(innerPadding),
             // #39 — Animated transitions
             enterTransition = { enterAnim },
@@ -128,6 +130,21 @@ fun AppNavigation() {
             popEnterTransition = { popEnterAnim },
             popExitTransition = { popExitAnim }
         ) {
+            // CN-2: Splash — no bottom bar, auto-navigate to Home
+            composable(
+                Screen.Splash.route,
+                enterTransition = { fadeIn(tween(300)) },
+                exitTransition = { fadeOut(tween(400)) }
+            ) {
+                SplashScreen(
+                    onFinished = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
             composable(Screen.Home.route) {
                 HomeScreen(
                     onMovieClick = { slug ->
@@ -139,6 +156,7 @@ fun AppNavigation() {
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
                 )
             }
+
 
             composable(Screen.Search.route) {
                 SearchScreen(
