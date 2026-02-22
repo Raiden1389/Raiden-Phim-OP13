@@ -21,8 +21,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 58
-        versionName = "1.20.2"
+        versionCode = 60
+        versionName = "1.20.5"
 
         // ═══ API Keys từ local.properties (không hardcode trong source) ═══
         buildConfigField("String", "TMDB_API_KEY", "\"${localProp("tmdb.api.key")}\"")

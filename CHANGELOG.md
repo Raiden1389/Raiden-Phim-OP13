@@ -1,5 +1,55 @@
 # Raiden Phim — Changelog
 
+## v1.20.5 — 2026-02-22 (Micro-UX Batch: Swipe, Popup, Stats, Menu)
+
+### ⚡ Micro-UX & Interaction (MU + IA Backlog Complete)
+
+Toàn bộ 5 micro-UX features đã được implement trong session này, nâng cao trải nghiệm người dùng đáng kể.
+
+#### ✨ MU-1 — Swipe Tab Navigation
+- **HorizontalPager 5 tab** bọc toàn bộ main screens (Home, English, Search, History, Settings)
+- Sync **2 chiều**: swipe → `NavController.navigate()`, tap tab icon → `pagerState.animateScrollToPage()`
+- `beyondViewportPageCount = 1` để preload tab kế tiếp, không lag khi swipe
+- Non-tab routes (Detail, Player, Category...) vẫn dùng `NavHost` bình thường
+
+#### ✨ MU-2 — Double-tap Info Popup
+- **Double-click bất kỳ MovieCard** → Dialog popup thay vì phải vào Detail screen
+- Popup: Poster 16:9 với gradient overlay, badges row (quality + lang + year), tên phim
+- Info: country, `episodeCurrent`, action buttons ▶️ Xem / ❤️ Favorite / 🔖 Watchlist
+- Dismiss bằng click ngoài popup
+
+#### ✨ MU-3 — Watch Statistics Tab
+- **Tab "Thống kê"** mới trong `WatchHistoryScreen` (cạnh tab "Lịch sử")
+- Hero card: tổng giờ/phút đã xem (tính từ `positionMs` tất cả items)
+- Stat grid: tổng phim / hoàn thành (>85%) / đang xem (5-85%)
+- Source breakdown: progress bars mỗi nguồn phim (OPhim, KKPhim...)
+- Top 5 phim xem nhiều nhất với medal emoji 🥇🥈🥉
+
+#### ✨ IA-1 — Long Press Context Menu
+- **Long-press bất kỳ MovieCard** → `ModalBottomSheet` thay vì toast cũ
+- Sheet header: thumbnail 48dp + tên phim + năm
+- Actions: ▶️ Xem ngay / ❤️ Thêm Yêu thích / 🔖 Thêm Xem sau (các state toggle đúng)
+- Sheet dismiss tự động sau action
+
+#### ✨ IA-2 — Swipe Card Actions (History)
+- **SwipeToDismissBox** trên mỗi history item:
+  - ← Swipe trái: 🗑️ Xóa (background đỏ + Delete icon)
+  - → Swipe phải: 📌 Ghim đầu danh sách (background tím + PushPin icon)
+- `WatchHistoryManager.pinToTop()`: update `lastWatched = now()` → item float lên đầu (sort by DESC)
+
+### 🐛 Fix
+- **MovieCard** — xóa `onLongClick` param dư, replace bằng internal `showContextMenu` state
+- **HomeComponents.kt** — `originName` không tồn tại trên `Movie` → `year + country.first().name`
+
+### 📦 Files Modified
+- `app/src/main/java/xyz/raidenhub/phim/navigation/AppNavigation.kt` — HorizontalPager integration
+- `app/src/main/java/xyz/raidenhub/phim/ui/components/MovieCard.kt` — double-tap popup + context menu
+- `app/src/main/java/xyz/raidenhub/phim/ui/screens/history/WatchHistoryScreen.kt` — stats tab + swipe
+- `app/src/main/java/xyz/raidenhub/phim/data/local/WatchHistoryManager.kt` — `pinToTop()` function
+- `app/src/main/java/xyz/raidenhub/phim/ui/screens/home/HomeComponents.kt` — originName fix
+- `app/build.gradle.kts` — versionName 1.20.2 → 1.20.5, versionCode 58 → 60
+- `BACKLOG.md` — tick MU-1/2/3, IA-1/2, CN-1/2/3 done
+
 ## v1.20.2 — 2026-02-22 (Room DB Migration — Phase 3 Fix)
 
 ### 🔧 Refactoring — Room DB Migration Phase 3

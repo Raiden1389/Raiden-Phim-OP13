@@ -124,13 +124,13 @@
 - [ ] #VP-5  **Card Shape Variants** — Settings: chọn hình poster card: Bo tròn mềm (iOS) / Bo nhẹ (Android) / Vuông cứng (Cinematic) / Asymmetric (nghệ)
 
 ## ⚡ Micro-UX (v1.20+)
-- [ ] #MU-1  **Swipe chuyển tab** — HorizontalPager cho bottom nav 5 tab, swipe trái/phải chuyển tab. Dùng 1 tay thoải mái
-- [ ] #MU-2  **Double-tap Poster Info** — Double-tap poster bất kỳ → popup card (rating, năm, số tập, nút Play). Không cần vào Detail
-- [ ] #MU-3  **Thống kê xem phim** — Screen trong Settings: tổng giờ xem, top phim, top thể loại, streak ngày. Kiểu Spotify Wrapped cho phim
+- [x] #MU-1  **Swipe chuyển tab** ✅ v1.20.5 — HorizontalPager 5 tab, sync 2-chiều với NavController, beyondViewportPageCount=1 preload
+- [x] #MU-2  **Double-tap Poster Info** ✅ v1.20.5 — Dialog: poster 16:9 + gradient + badges, country, episodeCurrent + Xem/Fav/Watchlist actions
+- [x] #MU-3  **Thống kê xem phim** ✅ v1.20.5 — Tab "Thống kê" trong History: tổng giờ, phim/hoàn thành/đang xem, breakdown by source, top 5 medals
 
 ## � Interaction (v1.20+)
-- [ ] #IA-1  **Long Press Context Menu** — Long press poster bất kỳ → rich menu nổi: ▶️ Play / 🔖 Watchlist / ❤️ Favorite / 📋 Add Playlist / 🚫 Ẩn. 1 điểm làm mọi thứ
-- [ ] #IA-2  **Swipe Card Actions** — Continue Watching: swipe trái = "Đã xem xong, ẩn". Swipe phải = "Pin lên đầu". Quản lý nhanh không cần menu
+- [x] #IA-1  **Long Press Context Menu** ✅ v1.20.5 — ModalBottomSheet: header thumb+tên, ▶️ Xem ngay / ❤️ Fav / 🔖 Watchlist. Replace default long-press
+- [x] #IA-2  **Swipe Card Actions** ✅ v1.20.5 — History screen: SwipeToDismissBox trái=🗑️ xóa (đỏ), phải=📌 ghim đầu (tím). pinToTop() update lastWatched timestamp
 
 ## �💎 Cá Nhân Hoá (v1.20+)
 - [x] #CN-1  **Custom Home Layout** ✅ v1.20.4 — 3 modes: Card lớn (150dp) / Lưới dày (110dp) / Danh sách (vertical rows). Persisted SharedPrefs. Picker trong Settings → 🎨 Giao diện
