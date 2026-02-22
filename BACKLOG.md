@@ -51,8 +51,9 @@
 - [ ] #51 Donghua Style Filter — tận dụng API `animeStyles` field để filter chính xác hơn
 
 ## 🐛 Bugs Known
-- [x] #BUG-1 **Data loss khi update APK** 🔴 — favorites + watch history bị mất khi install over APK ✅ Fixed
+- [x] #BUG-1 **Data loss khi update APK** 🔴 — favorites + watch history bị mất khi install over APK ✅ Fixed (Room DB không bị obfuscate)
 - [x] #BUG-3 **Widget "Xem tiếp" không cập nhật** — widget hiện "Chưa có phim" dù đang xem. Fix: thêm `notifyWidgetUpdate()` broadcast
+- [x] #BUG-4 **Room Migration compile errors** ✅ v1.20.2 — 12 lỗi collectAsState() thiếu `initial`, saveProgress→updateContinue API rename, history.value trên Flow, hiddenCount Int→Flow<Int>
 
 ---
 
@@ -139,9 +140,9 @@
 ## 🗑️ Tech Debt
 ### 🔴 P0 — Blocking
 - [x] #TD-1 **Xóa Extractor folder** — đã xóa 11MB Node.js dead code ở root project
-- [ ] #TD-2 **Room DB migration** — thay SharedPreferences bằng Room DB cho WatchHistory + Favorites + tất cả Managers (query nhanh, type-safe, ko parse JSON trên main thread)
+- [x] #TD-2 **Room DB migration** ✅ v1.20.2 — migrate toàn bộ 9 Managers (Favorite, WatchHistory, SearchHistory, Watchlist, Playlist, HeroFilter, SectionOrder, IntroOutro, Settings) sang Room DB. 9 DAOs + 9 Entities + AppDatabase. Backward-compat aliases giữ UI nguyên
 - [x] #TD-3 **Coil cache tuning** — 200MB disk cache + 50MB memory cache + hardware bitmaps (GPU) trong `App.kt`
-- [ ] #TD-4 **God Screen Split** — PlayerScreen (1298L), DetailScreen (827L), HomeScreen (798L), SearchScreen (538L) tách thành Screen + ViewModel + Components riêng. Unblock mọi feature mới
+- [x] #TD-4 **God Screen Split** ✅ v1.19.2 — PlayerScreen (1298L), DetailScreen (827L), HomeScreen (798L), SearchScreen (538L) → tách thành Screen + ViewModel + Components riêng (13 files)
 ### 🟡 P1 — Important
 - [ ] #TD-5 **Hilt DI** — Thay 8 `object + init(context)` singleton bằng Hilt @Inject. ViewModel dùng @HiltViewModel. Testable + clean
 - [ ] #TD-7 **Error Handling Strategy** — Phân biệt NetworkError/ApiError/ParseError. Retry chỉ cho network. Thêm Crashlytics free tier cho release build

@@ -1,6 +1,6 @@
 # 🎬 RaidenPhim — Tính Năng
 
-> **Phiên bản:** v1.19.1 · **Build:** 54 · **Cập nhật:** 2026-02-21
+> **Phiên bản:** v1.20.2 · **Build:** 58 · **Cập nhật:** 2026-02-22
 
 ---
 
@@ -90,7 +90,20 @@
 | 🌍 **Country Filter** | Chip lọc theo quốc gia trong CategoryScreen |
 | 📅 **Year Filter** | Chip lọc theo năm (Tất cả / 2025~2018) trong CategoryScreen |
 | ♾️ **Infinite Scroll** | Tự tải thêm khi cuộn đến cuối, loading spinner |
-| 🎌 **Anime Tab** | Nội dung anime từ Anime47 API, genre chips, Donghua section |
+
+---
+
+## 🌐 Nội Dung Tiếng Anh (SuperStream)
+
+| Tính năng | Mô tả |
+|-----------|-------|
+| 🔍 **TMDB Browse** | Trending + search phim/TV Shows từ TMDB API |
+| 📺 **TV & Movie** | Cả phim lẻ lẫn series, đầy đủ metadata TMDB |
+| ▶️ **Stream NuvFeb** | Direct M3U8/MP4 qua FebBox pipeline (1080p/720p/360p) |
+| ⭐ **Favorites** | Heart button lưu SuperStream phim vào WatchlistManager |
+| 🔖 **Favorites Row** | Row "⭐ Favorites" trên SuperStreamScreen |
+| ✅ **Watched Episodes** | Track tập đã xem per-series qua Room DB |
+| 🎬 **Auto-play** | Video tự phát khi stream URL load xong |
 
 ---
 
@@ -146,9 +159,9 @@
 | **Image loading** | Coil 3 + wsrv.nl image proxy (resize + compress server-side) |
 | **Video** | ExoPlayer (Media3) |
 | **Navigation** | Compose Navigation + Separate Activity cho Player |
-| **Storage** | SharedPreferences (settings, favorites, history, watchlist, playlists) |
+| **Storage** | **Room DB** (9 DAOs + 9 Entities — Favorites, History, SearchHistory, Watchlist, Playlist, HeroFilter, SectionOrder, IntroOutro, Settings) |
 | **Networking** | Retrofit 2 + OkHttp 4 + HTTP cache 50MB |
-| **Data sources** | KKPhim API + Ophim API + Anime47 API + OMDB API + TMDB API |
+| **Data sources** | KKPhim API + Ophim API + TMDB API + OMDB API + NuvFeb (FebBox) API |
 
 ---
 
@@ -158,8 +171,9 @@
 - **#P-1** Subtitle Style (font, size, màu, opacity)
 - **#P-2** Subtitle Position (slider Y)
 - **#S-5** Dynamic Trending — từ khóa trending tính từ search history aggregate
-- **#TD-2** Room DB (thay SharedPreferences cho history/favorites)
-- **#B-3** Shared Element Transition (full Navigation 2.8+ API)
+- **#TD-5** Hilt DI (thay object singleton bằng @Inject)
+- **#TD-9** Offline Mode — cache Home data, banner "Đang offline"
+- **#B-3** Shared Element Transition (Navigation 2.8+ API)
 
 ---
 
