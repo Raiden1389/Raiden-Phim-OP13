@@ -148,9 +148,8 @@
 - [ ] #TD-7 **Error Handling Strategy** — Phân biệt NetworkError/ApiError/ParseError. Retry chỉ cho network. Thêm Crashlytics free tier cho release build
 - [ ] #TD-9 **Offline Mode** — Cache last-loaded Home data vào Room. Mất mạng → hiện data cũ + banner "Đang offline". Continue Watching vẫn hoạt động
 ### 🟢 P2 — Nice to have
-- [ ] #TD-8  **API Key Security** — Move TMDB/OMDB key sang local.properties + BuildConfig. Không hardcode trong source
+  - [x] #TD-8  **API Key Security** ✅ v1.20.3 — TMDB_API_KEY + FEBBOX_COOKIE → local.properties + BuildConfig. Constants.kt dùng `BuildConfig.*`, zero hardcode
 - [ ] #TD-10 **ProGuard Precision** — Thay `-keep class **$* { *; }` bằng rules chính xác cho data/api/models + data/local. APK nhỏ hơn
-- [ ] #TD-11 **Compose Recomposition** — `remember` callbacks, `@Stable` annotations cho data class, `derivedStateOf` cho computed state. Giảm unnecessary recomposition
+  - [x] #TD-11 **Compose Recomposition** ✅ v1.20.3 — `@Immutable` cho FavoriteItem, ContinueItem, WatchlistItem, Playlist + toàn bộ SuperStreamModels. `derivedStateOf` cho `MovieCard.isFav` — skip recompose khi phim khác toggle fav
 - [ ] #TD-12 **KotlinX Serialization** — Thay Gson bằng kotlinx-serialization. Compile-time safe, nhanh hơn ~30%, nhẹ hơn ~300KB
 - [ ] #TD-13 **Gradle Multi-Module** — Split app thành :core, :data, :player, :ui modules. Parallel build + incremental compile
-
