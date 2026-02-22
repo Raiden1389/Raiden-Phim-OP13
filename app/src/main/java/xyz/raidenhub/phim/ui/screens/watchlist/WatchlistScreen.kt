@@ -1,5 +1,11 @@
 package xyz.raidenhub.phim.ui.screens.watchlist
 
+import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,18 +31,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.widget.Toast
 import coil3.compose.AsyncImage
-import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.Playlist
-import xyz.raidenhub.phim.data.local.WatchlistManager
+import xyz.raidenhub.phim.data.local.PlaylistManager
 import xyz.raidenhub.phim.data.local.WatchlistItem
+import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.ui.components.EmptyStateView
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.util.ImageUtils
 
+
 // ═══════════════════════════════════════════════
 // C-4: Xem Sau (Watchlist) Screen
+// CN-3: Gallery Mode — poster-only view (no labels)
 // ═══════════════════════════════════════════════
 @Composable
 fun WatchlistScreen(
@@ -43,6 +52,7 @@ fun WatchlistScreen(
 ) {
     val items by WatchlistManager.items.collectAsState(initial = emptyList())
     val context = LocalContext.current
+    var galleryMode by remember { mutableStateOf(false) }  // CN-3: Gallery toggle
 
     Column(Modifier.fillMaxSize().background(C.Background)) {
         // Top bar
@@ -53,9 +63,17 @@ fun WatchlistScreen(
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = C.TextPrimary)
             }
-            Column {
+            Column(Modifier.weight(1f)) {
                 Text("🔖 Xem Sau", color = C.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text("${items.size} phim đã bookmark", color = C.TextSecondary, fontSize = 12.sp)
+            }
+            // CN-3: Gallery toggle button
+            IconButton(onClick = { galleryMode = !galleryMode }) {
+                Icon(
+                    imageVector = if (galleryMode) Icons.Default.ViewList else Icons.Default.GridView,
+                    contentDescription = if (galleryMode) "Chế độ danh sách" else "Chế độ gallery",
+                    tint = if (galleryMode) C.Primary else C.TextSecondary
+                )
             }
         }
 
@@ -66,43 +84,54 @@ fun WatchlistScreen(
                 subtitle = "Bấm 🔖 trên phim bất kỳ để lưu vào đây"
             )
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(8.dp, 0.dp, 8.dp, 80.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(items, key = { it.slug }) { item ->
-                    WatchlistMovieCard(
-                        item = item,
-                        onClick = { onMovieClick(item.slug) },
-                        onRemove = {
-                            WatchlistManager.remove(item.slug)
-                            Toast.makeText(context, "🗑 Đã xoá khỏi Xem Sau", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+            // CN-3: Animated switch between Gallery (2-col, no text) and Normal (3-col with text)
+            AnimatedContent(
+                targetState = galleryMode,
+                transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) },
+                label = "gallery_anim"
+            ) { isGallery ->
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(if (isGallery) 2 else 3),
+                    contentPadding = PaddingValues(if (isGallery) 4.dp else 8.dp, 0.dp, if (isGallery) 4.dp else 8.dp, 80.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(items, key = { it.slug }) { item ->
+                        WatchlistMovieCard(
+                            item = item,
+                            onClick = { onMovieClick(item.slug) },
+                            galleryMode = isGallery,
+                            onRemove = {
+                                WatchlistManager.remove(item.slug)
+                                Toast.makeText(context, "🗑 Đã xoá khỏi Xem Sau", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+
 @Composable
 private fun WatchlistMovieCard(
     item: WatchlistItem,
     onClick: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    galleryMode: Boolean = false  // CN-3
 ) {
-    Box(Modifier.padding(4.dp)) {
+    val padding = if (galleryMode) 3.dp else 4.dp
+    Box(Modifier.padding(padding)) {
         Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(if (galleryMode) 10.dp else 8.dp))
                 .clickable(onClick = onClick)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(if (galleryMode) 10.dp else 8.dp))
                     .background(C.Surface)
             ) {
                 AsyncImage(
@@ -111,29 +140,35 @@ private fun WatchlistMovieCard(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-                // Remove button
-                IconButton(
-                    onClick = onRemove,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(28.dp)
-                        .padding(4.dp)
-                        .background(Color.Black.copy(0.7f), RoundedCornerShape(50))
-                ) {
-                    Icon(Icons.Default.Delete, "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
+                // Remove button — smaller in gallery mode
+                if (!galleryMode) {
+                    IconButton(
+                        onClick = onRemove,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(28.dp)
+                            .padding(4.dp)
+                            .background(Color.Black.copy(0.7f), RoundedCornerShape(50))
+                    ) {
+                        Icon(Icons.Default.Delete, "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
+                    }
                 }
             }
-            Text(
-                item.name,
-                color = C.TextPrimary,
-                fontSize = 12.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp, bottom = 4.dp)
-            )
+            // CN-3: Ẩn text hoàn toàn ở Gallery mode
+            if (!galleryMode) {
+                Text(
+                    item.name,
+                    color = C.TextPrimary,
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp, bottom = 4.dp)
+                )
+            }
         }
     }
 }
+
 
 // ═══════════════════════════════════════════════
 // C-5: Playlists Screen (danh sách tất cả playlist)
