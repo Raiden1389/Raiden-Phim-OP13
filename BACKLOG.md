@@ -133,9 +133,9 @@
 - [ ] #IA-2  **Swipe Card Actions** — Continue Watching: swipe trái = "Đã xem xong, ẩn". Swipe phải = "Pin lên đầu". Quản lý nhanh không cần menu
 
 ## �💎 Cá Nhân Hoá (v1.20+)
-- [ ] #CN-1  **Custom Home Layout** — Chọn style Home: Card lớn (1 cột poster to) / Grid chặt (3 cột) / List (info text). Tuỳ gu nhìn
-- [ ] #CN-2  **"My Theater" Splash** — Splash screen custom: tên riêng ("Raiden's Theater 🎬") + quote phim ngẫu nhiên. Cảm giác mở rạp riêng
-- [ ] #CN-3  **Poster Art Mode** — Trong Watchlist/Favorites: toggle "Gallery" — poster full-width, không text/badge, chỉ ảnh. Bộ sưu tập tranh
+- [x] #CN-1  **Custom Home Layout** ✅ v1.20.4 — 3 modes: Card lớn (150dp) / Lưới dày (110dp) / Danh sách (vertical rows). Persisted SharedPrefs. Picker trong Settings → 🎨 Giao diện
+- [x] #CN-2  **"My Theater" Splash** ✅ v1.20.3 — Compose Splash: glow logo 🎬, random movie quote (10 quotes VI), purple ambient glow, cinematic scale-in, 2.2s auto-navigate → Home
+- [x] #CN-3  **Poster Art Mode** ✅ v1.20.3 — Watchlist: toggle GridView↔ViewList icon trong topbar. Gallery mode: 2-col poster-only, no text, no delete, 10dp radius
 
 ## 🗑️ Tech Debt
 ### 🔴 P0 — Blocking
