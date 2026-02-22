@@ -96,6 +96,15 @@ object WatchHistoryManager {
         scope.launch { db.watchHistoryDao().removeContinue(slug) }
     }
 
+    /** IA-2: Pin item to top by refreshing lastWatched timestamp */
+    fun pinToTop(slug: String) {
+        scope.launch {
+            db.watchHistoryDao().getContinueItem(slug)?.let { entity ->
+                db.watchHistoryDao().upsertContinue(entity.copy(lastWatched = System.currentTimeMillis()))
+            }
+        }
+    }
+
     fun clearAllContinue() {
         scope.launch { db.watchHistoryDao().clearAllContinue() }
     }

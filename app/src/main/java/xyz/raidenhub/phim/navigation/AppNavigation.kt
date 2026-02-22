@@ -6,10 +6,13 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -17,9 +20,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +69,7 @@ private val popEnterAnim = fadeIn(tween(300)) +
 private val popExitAnim = fadeOut(tween(250)) +
     slideOutHorizontally(tween(250)) { it / 5 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
@@ -86,21 +88,37 @@ fun AppNavigation() {
         })
     }
 
+    // MU-1: Tab routes in swipe order
+    val tabRoutes = remember { navItems.map { it.route } }
+    val currentTabIndex = remember(currentRoute) {
+        tabRoutes.indexOf(currentRoute).takeIf { it >= 0 } ?: 0
+    }
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabRoutes.size })
+
+    // MU-1: Sync pager → NavController when user swipes
+    LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
+        if (!pagerState.isScrollInProgress && currentRoute in tabRoutes) {
+            val targetRoute = tabRoutes[pagerState.currentPage]
+            if (currentRoute != targetRoute) {
+                navController.navigate(targetRoute) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        }
+    }
+
+    // MU-1: Sync NavController → pager when tab tapped
+    LaunchedEffect(currentRoute) {
+        val idx = tabRoutes.indexOf(currentRoute)
+        if (idx >= 0 && idx != pagerState.currentPage) {
+            pagerState.animateScrollToPage(idx)
+        }
+    }
 
     // Hide bottom bar on non-tab screens
-    val showBottomBar = currentRoute in listOf(
-        Screen.Home.route, Screen.Search.route, Screen.Favorites.route,
-        Screen.Settings.route, Screen.WatchHistory.route,
-        Screen.SuperStream.route
-    )
-
-    val navColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = C.Primary,
-        selectedTextColor = C.Primary,
-        indicatorColor = C.Primary.copy(0.15f),
-        unselectedIconColor = C.TextSecondary,
-        unselectedTextColor = C.TextSecondary
-    )
+    val showBottomBar = currentRoute in tabRoutes
 
     Scaffold(
         containerColor = C.Background,
@@ -145,23 +163,92 @@ fun AppNavigation() {
                 )
             }
 
+            // MU-1: Tab screens wrapped in HorizontalPager for swipe navigation
             composable(Screen.Home.route) {
-                HomeScreen(
-                    onMovieClick = { slug ->
-                        navController.navigate(Screen.Detail.createRoute(slug))
-                    },
-                    onContinue = { slug, server, ep, positionMs, source ->
-                        startPlayerActivity(slug, server, ep, positionMs, source)
-                    },
-                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                )
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = true,
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    when (page) {
+                        0 -> HomeScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, positionMs, source ->
+                                startPlayerActivity(slug, server, ep, positionMs, source)
+                            },
+                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
+                        )
+                        1 -> SuperStreamScreen(
+                            onItemClick = { tmdbId, type ->
+                                navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
+                            },
+                            onBack = { navController.popBackStack() }
+                        )
+                        2 -> SearchScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                        )
+                        3 -> WatchHistoryScreen(
+                            onBack = { navController.popBackStack() },
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, source ->
+                                startPlayerActivity(slug, server, ep, source = source)
+                            }
+                        )
+                        4 -> SettingsScreen()
+                        else -> HomeScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, positionMs, source ->
+                                startPlayerActivity(slug, server, ep, positionMs, source)
+                            },
+                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
+                        )
+                    }
+                }
             }
 
-
+            // Redirect Search/History/Settings/SuperStream to Home composable (pager handles them)
             composable(Screen.Search.route) {
-                SearchScreen(
-                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
-                )
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    userScrollEnabled = true,
+                    beyondViewportPageCount = 1
+                ) { page ->
+                    when (page) {
+                        0 -> HomeScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, positionMs, source ->
+                                startPlayerActivity(slug, server, ep, positionMs, source)
+                            },
+                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
+                        )
+                        1 -> SuperStreamScreen(
+                            onItemClick = { tmdbId, type ->
+                                navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
+                            },
+                            onBack = { navController.popBackStack() }
+                        )
+                        2 -> SearchScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
+                        )
+                        3 -> WatchHistoryScreen(
+                            onBack = { navController.popBackStack() },
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, source ->
+                                startPlayerActivity(slug, server, ep, source = source)
+                            }
+                        )
+                        4 -> SettingsScreen()
+                        else -> HomeScreen(
+                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                            onContinue = { slug, server, ep, positionMs, source ->
+                                startPlayerActivity(slug, server, ep, positionMs, source)
+                            },
+                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
+                        )
+                    }
+                }
             }
 
             // #36 — Watch History screen
