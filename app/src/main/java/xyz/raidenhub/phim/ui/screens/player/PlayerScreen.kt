@@ -50,7 +50,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
@@ -200,9 +204,33 @@ fun PlayerScreen(
     val movieCountry by vm.country.collectAsState()
 
     val player = remember {
-        ExoPlayer.Builder(context).build().apply {
-            playWhenReady = true
-        }
+        // ═══ Anti-rebuffer config ═══
+        // Vấn đề: Video dừng chờ do ExoPlayer default buffer quá nhỏ (15s/50MB)
+        // Fix: Tăng buffer 30s min → 120s max, retry 5 lần khi HTTP fail
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs    = */ 30_000,   // buffer ít nhất 30s trước khi play
+                /* maxBufferMs    = */ 120_000,  // buffer tối đa 2 phút
+                /* bufferForPlaybackMs = */ 2_500,  // bắt đầu play khi có 2.5s
+                /* bufferForPlaybackAfterRebufferMs = */ 5_000  // sau stall, cần 5s mới chạy lại
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)  // ưu tiên time-based buffer
+            .build()
+
+        val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(20_000)
+            .setAllowCrossProtocolRedirects(true)  // cho phép http→https redirect
+
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
+
+        ExoPlayer.Builder(context)
+            .setLoadControl(loadControl)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .build()
+            .apply {
+                playWhenReady = true
+            }
     }
 
     // Play current episode — seek to saved position only on initial episode load
