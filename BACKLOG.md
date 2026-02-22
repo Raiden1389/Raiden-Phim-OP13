@@ -149,7 +149,7 @@
 - [ ] #TD-9 **Offline Mode** — Cache last-loaded Home data vào Room. Mất mạng → hiện data cũ + banner "Đang offline". Continue Watching vẫn hoạt động
 ### 🟢 P2 — Nice to have
   - [x] #TD-8  **API Key Security** ✅ v1.20.3 — TMDB_API_KEY + FEBBOX_COOKIE → local.properties + BuildConfig. Constants.kt dùng `BuildConfig.*`, zero hardcode
-- [ ] #TD-10 **ProGuard Precision** — Thay `-keep class **$* { *; }` bằng rules chính xác cho data/api/models + data/local. APK nhỏ hơn
+  - [x] #TD-10 **ProGuard Precision** ✅ v1.20.3 — Xóa 6 rules `data.local` dư (Room migration xong, không còn Gson JSON classes). Chỉ keep API models + widget. Thêm keep DataStore + WorkManager. Release APK = 4.22MB
   - [x] #TD-11 **Compose Recomposition** ✅ v1.20.3 — `@Immutable` cho FavoriteItem, ContinueItem, WatchlistItem, Playlist + toàn bộ SuperStreamModels. `derivedStateOf` cho `MovieCard.isFav` — skip recompose khi phim khác toggle fav
 - [ ] #TD-12 **KotlinX Serialization** — Thay Gson bằng kotlinx-serialization. Compile-time safe, nhanh hơn ~30%, nhẹ hơn ~300KB
 - [ ] #TD-13 **Gradle Multi-Module** — Split app thành :core, :data, :player, :ui modules. Parallel build + incremental compile
