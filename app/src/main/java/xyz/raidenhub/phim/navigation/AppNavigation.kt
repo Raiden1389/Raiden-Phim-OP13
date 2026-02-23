@@ -218,7 +218,9 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
                 )
             }
             composable(Screen.Search.route) {
@@ -228,7 +230,9 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
                 )
             }
 
@@ -240,7 +244,9 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
                 )
             }
             composable(Screen.Settings.route) {
@@ -250,7 +256,9 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
                 )
             }
 
