@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import xyz.raidenhub.phim.ui.theme.C
 
 // ═══════════════════════════════════════════════════════════
@@ -64,32 +65,65 @@ fun ShimmerBox(
 // ═══════════════════════════════════════════════════════════
 
 @Composable
-fun ShimmerDetailScreen() {
+fun ShimmerDetailScreen(
+    thumbUrl: String = "",
+    title: String = ""
+) {
     val brush = rememberShimmerBrush()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(C.Background)
     ) {
-        // Backdrop shimmer
+        // Backdrop — ảnh thật nếu có (từ Coil cache, instant), shimmer nếu chưa có
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(300.dp)
-                .background(brush)
-        )
+        ) {
+            if (thumbUrl.isNotBlank()) {
+                coil3.compose.AsyncImage(
+                    model = thumbUrl,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Gradient overlay để text đọc được
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Black.copy(0.2f), Color.Black.copy(0.75f))
+                            )
+                        )
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(brush))
+            }
+        }
 
         Column(Modifier.padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(16.dp))
 
-            // Title shimmer
-            Box(
-                Modifier
-                    .fillMaxWidth(0.7f)
-                    .height(24.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(brush)
-            )
+            // Title — thật nếu có, shimmer nếu không
+            if (title.isNotBlank()) {
+                androidx.compose.material3.Text(
+                    title,
+                    color = C.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    maxLines = 2
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(brush)
+                )
+            }
             Spacer(Modifier.height(8.dp))
 
             // Subtitle shimmer

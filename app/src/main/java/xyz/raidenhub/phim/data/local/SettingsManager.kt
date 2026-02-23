@@ -12,6 +12,14 @@ enum class HomeLayout(val label: String, val emoji: String) {
     LIST("Danh sách", "☰")               // 1-col — title + thumbnail row
 }
 
+// VP-5: Card shape variants
+enum class CardShape(val label: String, val emoji: String, val cornerDp: Int) {
+    SOFT("Bo mềm", "🍕", 16),         // iOS style
+    ANDROID("Bo nhẹ", "🤖", 8),       // Android default
+    CINEMATIC("Vuông", "▪️", 2),       // Cinematic hard edge
+    ASYMMETRIC("Nghệ", "🎨", -1)     // topStart=0, rest=12dp
+}
+
 object SettingsManager {
     private lateinit var prefs: SharedPreferences
 
@@ -39,6 +47,10 @@ object SettingsManager {
     // ═══ CN-1: Home Layout ═══
     private val _homeLayout = MutableStateFlow(HomeLayout.COMFORTABLE)
     val homeLayout = _homeLayout.asStateFlow()
+
+    // ═══ VP-5: Card Shape ═══
+    private val _cardShape = MutableStateFlow(CardShape.ANDROID)
+    val cardShape = _cardShape.asStateFlow()
 
     val activeFilterCount: Int
         get() = _selectedCountries.value.size + _selectedGenres.value.size
@@ -90,6 +102,9 @@ object SettingsManager {
         _homeLayout.value = HomeLayout.values().find {
             it.name == prefs.getString("homeLayout", null)
         } ?: HomeLayout.COMFORTABLE
+        _cardShape.value = CardShape.values().find {
+            it.name == prefs.getString("cardShape", null)
+        } ?: CardShape.ANDROID
     }
 
     fun toggleCountry(slug: String) {
@@ -124,6 +139,11 @@ object SettingsManager {
     fun setHomeLayout(layout: HomeLayout) {
         _homeLayout.value = layout
         prefs.edit().putString("homeLayout", layout.name).apply()
+    }
+
+    fun setCardShape(shape: CardShape) {  // VP-5
+        _cardShape.value = shape
+        prefs.edit().putString("cardShape", shape.name).apply()
     }
 
     fun clearCountries() {

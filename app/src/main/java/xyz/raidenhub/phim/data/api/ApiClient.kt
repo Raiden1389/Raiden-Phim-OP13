@@ -18,11 +18,20 @@ object ApiClient {
         OkHttpClient.Builder()
             .connectTimeout(Constants.NETWORK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(Constants.NETWORK_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .connectionPool(ConnectionPool(3, 2, TimeUnit.MINUTES))
+            .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
             .apply {
                 cacheDir?.let { dir ->
-                    cache(Cache(File(dir, "http_cache"), 50L * 1024 * 1024))
+                    // 300MB cho API JSON — response ~50-200KB → chứa được 1500-6000 responses
+                    cache(Cache(File(dir, "http_cache"), 300L * 1024 * 1024))
                 }
+            }
+            // Force-cache 30 phút: override server no-cache headers cho OPhim/KKPhim API
+            .addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                response.newBuilder()
+                    .header("Cache-Control", "public, max-age=1800") // 30 phút
+                    .removeHeader("Pragma")
+                    .build()
             }
             .apply {
                 if (BuildConfig.DEBUG) {

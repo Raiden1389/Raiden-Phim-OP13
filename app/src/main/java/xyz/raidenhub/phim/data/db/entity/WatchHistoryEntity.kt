@@ -1,12 +1,17 @@
 package xyz.raidenhub.phim.data.db.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
  * Continue Watching — phim đang xem dở (1 entry per slug, upsert on progress save)
  */
-@Entity(tableName = "continue_watching")
+// P4: Index on lastWatched — ORDER BY lastWatched DESC được tối ưu hóa
+@Entity(
+    tableName = "continue_watching",
+    indices = [Index(value = ["lastWatched"])]
+)
 data class ContinueWatchingEntity(
     @PrimaryKey val slug: String,
     val name: String,
@@ -25,9 +30,11 @@ data class ContinueWatchingEntity(
  * Watched Episodes — set of episode indices watched per slug
  * Composite PK: slug + episodeIdx
  */
+// P4: Index on slug — query getWatchedEpisodes(slug) tối ưu hóa
 @Entity(
     tableName = "watched_episodes",
-    primaryKeys = ["slug", "episodeIdx"]
+    primaryKeys = ["slug", "episodeIdx"],
+    indices = [Index(value = ["slug"])]
 )
 data class WatchedEpisodeEntity(
     val slug: String,

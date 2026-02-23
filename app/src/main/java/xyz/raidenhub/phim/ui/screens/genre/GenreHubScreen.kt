@@ -14,10 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.util.GenreColors
 
 // C-2: Genre Hub — danh sách thể loại → CategoryScreen
 private data class GenreItem(val emoji: String, val name: String, val slug: String)
@@ -83,13 +85,15 @@ fun GenreHubScreen(
     }
 }
 
+// VP-3: Genre card với gradient background theo thể loại
 @Composable
 private fun GenreCard(genre: GenreItem, onClick: () -> Unit) {
+    val palette = GenreColors.palette(genre.slug)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(C.Surface)
+            .background(palette.gradient)  // VP-3: gradient thay vì C.Surface flat
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -98,7 +102,7 @@ private fun GenreCard(genre: GenreItem, onClick: () -> Unit) {
         Text(genre.emoji, fontSize = 28.sp)
         Text(
             genre.name,
-            color = C.TextPrimary,
+            color = Color.White,  // VP-3: white text trên gradient
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold
         )

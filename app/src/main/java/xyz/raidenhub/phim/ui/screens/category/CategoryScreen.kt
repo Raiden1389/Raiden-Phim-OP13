@@ -132,13 +132,7 @@ private val COUNTRY_FILTERS = listOf(
     CountryFilter("Tất cả", ""),
     CountryFilter("🇰🇷 Hàn Quốc", "han-quoc"),
     CountryFilter("🇨🇳 Trung Quốc", "trung-quoc"),
-    CountryFilter("🇯🇵 Nhật Bản", "nhat-ban"),
     CountryFilter("🇺🇸 Âu Mỹ", "au-my"),
-    CountryFilter("🇹🇭 Thái Lan", "thai-lan"),
-    CountryFilter("🇮🇳 Ấn Độ", "an-do"),
-    CountryFilter("🇹🇼 Đài Loan", "dai-loan"),
-    CountryFilter("🇭🇰 Hồng Kông", "hong-kong"),
-    CountryFilter("🇵🇭 Philippines", "philippines"),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

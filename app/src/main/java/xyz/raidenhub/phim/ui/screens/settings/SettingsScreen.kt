@@ -20,12 +20,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import xyz.raidenhub.phim.BuildConfig
+import xyz.raidenhub.phim.data.local.CardShape
 import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.HomeLayout
 import xyz.raidenhub.phim.data.local.HeroFilterManager
 import xyz.raidenhub.phim.data.local.SectionOrderManager
 import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
+import xyz.raidenhub.phim.util.Constants
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
@@ -44,12 +46,13 @@ import xyz.raidenhub.phim.notification.EpisodeCheckWorker
 
 @Composable
 fun SettingsScreen() {
-    val selectedCountries by SettingsManager.selectedCountries.collectAsState()
+    // Country filter bị xóa — scope cố định Hàn/Trung/Mỹ qua Constants.ALLOWED_COUNTRIES
     val selectedGenres by SettingsManager.selectedGenres.collectAsState()
     val autoPlayNext by SettingsManager.autoPlayNext.collectAsState()
     val defaultQuality by SettingsManager.defaultQuality.collectAsState()
     val notifyNewEpisode by SettingsManager.notifyNewEpisode.collectAsState()
     val homeLayout by SettingsManager.homeLayout.collectAsState()   // CN-1
+    val cardShape by SettingsManager.cardShape.collectAsState()       // VP-5
     val context = LocalContext.current
     var showQualitySheet by remember { mutableStateOf(false) }
 
@@ -127,6 +130,65 @@ fun SettingsScreen() {
                                     )
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // VP-5: Card Shape picker — 4 kiểu bo góc
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .padding(16.dp)
+            ) {
+                Text("🃏 Kiểu poster card", color = C.TextPrimary, fontFamily = InterFamily, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text("Bo góc các poster phim", color = C.TextSecondary, fontFamily = InterFamily, fontSize = 12.sp)
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CardShape.values().forEach { shape ->
+                        val isSelected = cardShape == shape
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) C.Primary.copy(alpha = 0.15f) else C.Background)
+                                .clickable { SettingsManager.setCardShape(shape) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            // Mini preview của shape
+                            val previewShape = when (shape) {
+                                CardShape.ASYMMETRIC -> RoundedCornerShape(
+                                    topStart = 0.dp, topEnd = 8.dp,
+                                    bottomStart = 8.dp, bottomEnd = 0.dp
+                                )
+                                else -> RoundedCornerShape(shape.cornerDp.coerceAtLeast(0).dp)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 28.dp, height = 38.dp)
+                                    .clip(previewShape)
+                                    .background(
+                                        if (isSelected) C.Primary else C.SurfaceVariant
+                                    )
+                            )
+                            Text(
+                                shape.emoji,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                shape.label,
+                                color = if (isSelected) C.Primary else C.TextSecondary,
+                                fontFamily = InterFamily,
+                                fontSize = 10.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
                         }
                     }
                 }
@@ -348,42 +410,33 @@ fun SettingsScreen() {
             Spacer(Modifier.height(24.dp))
         }
 
-        // ═══ Country Filter ═══
-
+        // Country Filter đã bị xóa — Scope cố định: 🇰🇷 Hàn / 🇨🇳 Trung / 🇺🇸 Mỹ
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("🌍 Quốc gia", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
+                    Text("🌍 Nguồn phim", color = C.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Text(
-                        if (selectedCountries.isEmpty()) "Hiện tất cả quốc gia" else "${selectedCountries.size} quốc gia đã chọn",
-                        color = C.TextSecondary, fontSize = 13.sp
+                        Constants.ALLOWED_COUNTRIES.joinToString(" · ") {
+                            when(it) {
+                                "han-quoc"   -> "🇰🇷 Hàn Quốc"
+                                "trung-quoc" -> "🇨🇳 Trung Quốc"
+                                "au-my"      -> "🇺🇸 Âu Mỹ"
+                                else -> it
+                            }
+                        },
+                        color = C.TextSecondary, fontSize = 12.sp
                     )
                 }
-                if (selectedCountries.isNotEmpty()) {
-                    Text(
-                        "Xoá bộ lọc",
-                        color = C.Primary,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { SettingsManager.clearCountries() }
-                            .padding(8.dp)
-                    )
-                }
+                Text("Cố định", color = C.TextMuted, fontSize = 11.sp)
             }
-            Spacer(Modifier.height(12.dp))
-        }
-
-        item {
-            FlowChips(
-                items = SettingsManager.ALL_COUNTRIES,
-                selected = selectedCountries,
-                onToggle = { SettingsManager.toggleCountry(it) }
-            )
             Spacer(Modifier.height(24.dp))
         }
 

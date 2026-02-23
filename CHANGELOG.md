@@ -1,4 +1,195 @@
 # Raiden Phim — Changelog
+## v1.20.8 — 2026-02-23 (Player UX + Episode Badge)
+
+### ✨ Player — Gesture & Controls
+
+#### 🕹️ PL-3 — Swipe Horizontal Seek (MX Player style)
+- Swipe ngang trên màn hình player = seek liên tục
+- 1px drag ≈ 200ms, full swipe ≈ ±3.6 phút
+- Billboard overlay **"↔ 1:23:45 / 2:00:00"** hiện giữa màn hình khi đang swipe
+- Thả tay → `seekTo()` tức thì tại vị trí mới
+- Không conflict với vertical swipe brightness/volume (gesture detection riêng biệt)
+
+#### ⏳ PL-4 — Remaining Time Toggle
+- Tap vào time display `1:23:45 / 2:00:00` → toggle thành `-0:36:15` (thời gian còn lại)
+- Tap lại → về dạng elapsed / total
+- Subtle background pill để rõ tappable
+
+#### 🔍 PL-1 (Opt C) — Seekbar Time Tooltip
+- Kéo seekbar → tooltip màu đỏ **(C.Primary)** hiện phía trên slider với thời gian target
+- Không cần extract frame, không lag
+- Thả → tooltip fade out 150ms
+
+### ✨ UX-2 — Episode Tracker Badge
+
+- **Progress bar đỏ 3dp** ở cuối mỗi poster phim bộ — fill theo % tập đã xem
+- **Badge "12/48"** góc dưới phải, dark overlay
+- Chỉ hiện khi `watchedCount > 0` **và** phim có > 1 tập (không hiện với phim lẻ)
+- **Reactive**: cập nhật ngay lập tức khi xem xong tập (Room Flow)
+- Parse total episodes từ `episodeCurrent` string ("Tập 48 / 48", "Hoàn Tất (48/48)")
+
+### 📦 Files Modified
+- `ui/screens/player/PlayerScreen.kt` — PL-3 overlay Box + gesture, PL-4 time toggle, PL-1 seekbar tooltip
+- `ui/components/MovieCard.kt` — UX-2 progress bar + "X/Y" badge
+
+---
+
+
+### 🐛 Bugfixes
+
+#### 🔧 Watched Episodes Tracking — SuperStream
+- **Root cause:** `markWatched()` không bao giờ được gọi cho SuperStream → episode không tick ✓ dù đã xem xong
+- **Fix:** `PlayerScreen.onDispose` — nếu `source == "superstream"` và progress ≥ 70% → `WatchHistoryManager.markWatched("ss_tv_{tmdbId}", epIdx)`
+
+#### 🔧 MU-2 — Gesture Conflict (MovieCard)
+- Hợp nhất stack `pointerInput + combinedClickable` thành 1 `detectTapGestures` — eliminating double-fire issue
+- Single tap chỉ navigate, double tap → info popup, long press → context menu — hoạt động chính xác
+
+#### 🔧 Bottom Nav Icon "Zoom" khi Swipe
+- **Root cause:** `AnimatedVisibility(expandVertically)` trên label → layout shift → toàn bộ Column phình ra → trông như icon zoom
+- **Fix:** Xóa `AnimatedVisibility`, thay bằng 1 `Text` duy nhất với `animateColorAsState(tween 250ms)` — label luôn chiếm space, chỉ đổi màu Primary ↔ TextSecondary
+- Scale icon cố định `1f` — zero zoom effect
+
+#### 🔧 Actor Names hiển thị chữ Hàn/Hán
+- **Root cause:** TMDB `/credits` API mặc định trả tên ngôn ngữ gốc (`김선호`, `金宣虎`)
+- **Fix:** Thêm `?language=en-US` → TMDB trả romanized name (`Kim Seon-ho`, `Jin Xuan-Hu`)
+
+#### 🔧 Watchlist Button icon sai (🔇 → +)
+- Emoji `🔇` (loa tắt tiếng) là typo copy từ codebase cũ — không liên quan đến watchlist
+- **Fix:** `Icons.Default.Add` (+) khi chưa thêm, `Icons.Default.Bookmark` (filled tím) khi đã add
+
+### ✨ Navigation — Bottom Bar Swipe (MU-1 Redesign)
+- **Tắt full-screen Pager swipe** (`userScrollEnabled = false`)
+- **Swipe CHỈ trên bottom nav bar** — `detectHorizontalDragGestures`, threshold 48dp
+- **Detail screen transition:** Cinematic slide-up từ dưới + scaleIn(0.88)
+
+### ✨ SuperStream — Smart Episode Prefetch
+- **Near-end prefetch** khi còn `< 3 phút` / `< 15%` — fetch URL tập sau trước khi user bấm Next
+- **Tắt auto-next cho SuperStream** (cả polling loop + `STATE_ENDED`) — user tự chủ động
+- **Loading spinner** "⏳ Đang tải tập..." khi fetch URL tập tiếp
+
+### ✨ Detail Screen — Optimistic UI (Instant Loading Feel)
+- `PendingDetailState` singleton: MovieCard set `thumbUrl + title` trước khi navigate
+- `ShimmerDetailScreen` hiện ảnh poster thật + title ngay từ Coil memory cache (0ms)
+- API data load xong → replace shimmer → transition smooth
+
+### ⚡ Image Performance
+- **Bỏ wsrv.nl proxy** — direct CDN URL thay vì route qua server EU
+  - Phone VN: CDN OPhim/KKPhim (Cloudflare Asia) đã đủ nhanh, không cần extra hop
+  - **Bonus:** card/shimmer/detail cùng 1 URL → Coil cache hit 100%, ảnh không fetch lại khi mở detail
+- **Force API cache interceptor** — Override server `no-cache/no-store` headers → cache API response 5 phút
+- **Coil cache tăng:** memory 50→80MB, disk 200→400MB
+- **Connection pool:** 3→5 connections
+
+#### 🔧 Backdrop Parallax — Lộ khoảng trắng khi scroll
+- **Root cause:** `translationY = +scrollOffset * 0.5f` (dương) → ảnh trượt **xuống** trong Box → lộ trắng phía trên
+- **Fix:** `translationY = -scrollOffset * 0.3f` (âm) → ảnh trượt **lên** cùng chiều scroll nhưng chậm hơn → luôn phủ từ phía trên
+- Thêm `.clip(RectangleShape)` trên Box để chặn overflow ra ngoài LazyColumn item
+
+### ⚡ Detail Content Cache (3 lớp)
+
+- **L1 — In-memory** `MovieRepository.detailCache` (LinkedHashMap, TTL 5 phút, max 20 phim)
+  - Back rồi vào lại cùng Detail screen trong 5 phút → `DetailState.Success` ngay lập tức, shimmer không hiện
+  - LRU eviction: phim cũ nhất bị xóa khi đạt 20 entry
+- **L2 — HTTP disk** — OkHttp 50MB cache + force-cache interceptor (5 phút TTL)
+- **L3 — Coil image** — 80MB memory + 400MB disk (ảnh poster/backdrop persist qua app restart)
+
+### 📦 Files Modified
+- `ui/screens/player/PlayerScreen.kt` — SS watched tracking, prefetch near-end, disable SS auto-next
+- `navigation/AppNavigation.kt` — bottom bar swipe, label text fix (no AnimatedVisibility), icon scale=1f
+- `ui/components/MovieCard.kt` — MU-2 single detectTapGestures, PendingDetailState.set()
+- `ui/components/ShimmerEffect.kt` — ShimmerDetailScreen(thumbUrl, title)
+- `ui/screens/detail/DetailScreen.kt` — optimistic UI, parallax fix, actor TMDB name, watchlist icon
+- `ui/screens/detail/PendingDetailState.kt` — **NEW** optimistic UI singleton
+- `data/repository/MovieRepository.kt` — **NEW** in-memory detail cache (TTL 5 phút, max 20)
+- `util/ImageUtils.kt` — remove wsrv.nl proxy, direct CDN URLs
+- `App.kt` — Coil cache 80MB/400MB, force-cache interceptor
+
+---
+
+## v1.20.6 — 2026-02-23 (Visual Polish + Scope Lock + UX Fixes)
+
+### ✨ Visual Polish
+
+#### VP-2 — Animated Number Counter
+- Rating IMDb/TMDB: count-up animation từ 0.0 → giá trị thực (`AnimatedFloatCounter`, 1s)
+- Năm phát hành: count-up `AnimatedIntCounter` (0.9s), `FastOutSlowInEasing`
+- Premium feel mỗi lần mở Detail screen
+
+#### VP-3 — Category Colors
+- 20 thể loại có gradient riêng biệt: Hành Động (đỏ cam), Kinh Dị (tím đen), Tình Cảm (hồng), Tâm Lý (xanh dương)...
+- `GenreColors.kt` — util map `slug → GenrePalette(start, end, label)`
+- GenreHub cards: gradient background thay vì flat `C.Surface`, text trắng
+- Dễ reuse cho CategoryScreen header, SearchScreen chips sau
+
+#### VP-5 — Card Shape Variants
+- 4 kiểu bo góc: **Bo mềm** (16dp iOS) / **Bo nhẹ** (8dp Android default) / **Vuông** (2dp cinematic) / **Nghệ** (asymmetric 0/12/12/0)
+- Settings → Giao diện → picker với **mini poster preview** đúng shape + highlight active
+- Persist SharedPreferences, reactive realtime — đổi settings → tất cả card cập nhật ngay
+- **Bugfix:** Image Box bên trong dùng hardcode `RoundedCornerShape(8.dp)` → override shape. Fix: truyền `cardCornerShape` xuống cả Box image
+
+### 🌍 App Scope Lock — Hàn / Trung / Mỹ only
+- `Constants.ALLOWED_COUNTRIES = setOf("han-quoc", "trung-quoc", "au-my")` — hardcode cố định
+- `MovieRepository.filterCountry()` luôn active (không còn nullable), filter tại tầng API
+- `CategoryScreen.COUNTRY_FILTERS` trim còn 4 chip: Tất cả / 🇰🇷 / 🇨🇳 / 🇺🇸 (bỏ Nhật/Thái/Ấn...)
+- Settings: xóa Country Filter picker, thay bằng info card "Cố định 🇰🇷·🇨🇳·🇺🇸"
+- `HomeScreen.applySettingsFilter()` chỉ còn genre filter — country đã xử lý ở repo level
+
+### 🎉 UX Improvements
+- **Greeting upgrade:** 7 khung giờ chi tiết (khuya/sáng sớm/sáng/trưa/chiều/tối/đêm)
+- **Xưng hô:** "Sếp" / "Tông Chủ" xen kẽ theo phút lẻ/chẵn + emoji sống động
+- **Xóa filter badge:** Bỏ "🔵 16 bộ lọc" khỏi greeting row — không cần thiết, gây giãn UI
+
+### 📦 Files Modified
+- `util/Constants.kt` — ALLOWED_COUNTRIES hardcode
+- `util/GenreColors.kt` — **NEW** genre palette utility
+- `data/repository/MovieRepository.kt` — filterCountry non-null
+- `data/local/SettingsManager.kt` — CardShape enum + _cardShape Flow + init/setter
+- `ui/components/MovieCard.kt` — VP-5 CardShape apply + bugfix image clip
+- `ui/screens/genre/GenreHubScreen.kt` — VP-3 gradient cards
+- `ui/screens/detail/DetailScreen.kt` — VP-2 AnimatedIntCounter + AnimatedFloatCounter
+- `ui/screens/settings/SettingsScreen.kt` — VP-5 picker + scope info card, xóa country filter
+- `ui/screens/category/CategoryScreen.kt` — trim COUNTRY_FILTERS 3 nước
+- `ui/screens/home/HomeScreen.kt` — greeting upgrade + xóa filter badge + genre-only filter
+
+
+### 🐛 Bugfix
+
+#### 🔧 MU-1 — Swipe Tab bị về lại / Bottom bar không đổi screen
+- **Root cause:** Race condition giữa 2 `LaunchedEffect` — `currentPage` update trước khi animation xong → `animateScrollToPage()` kéo pager ngược chiều
+- **Fix:** Thay `LaunchedEffect(currentPage, isScrollInProgress)` bằng **`LaunchedEffect(settledPage)`** — chỉ fire sau khi animation hoàn toàn xong
+- Đọc `currentNavRoute` trực tiếp từ `navController.currentBackStackEntry` thay vì stale closure
+- Thêm guard `!isScrollInProgress` trong Nav→Pager sync để tránh fight khi user đang swipe
+
+#### 🔧 MU-2 — Double-tap mở Detail screen + giật giật
+- **Root cause:** Compose known bug với `combinedClickable(onClick + onDoubleClick)` — đôi khi fire cả 2 cùng lúc → navigate to detail AND show popup đồng thời
+- **Fix:** Tách double-tap thành **`pointerInput { detectTapGestures }`** riêng với timestamp tracking (threshold 300ms)
+- `combinedClickable` chỉ còn `onClick` + `onLongClick` — không có conflict
+- Jank eliminated: 3 animations (press scale + popup + navigate) không còn chạy song song
+
+### ⚡ Performance Batch (7 fixes)
+
+| Fix | File | Tác động |
+|-----|------|---------|
+| P1: `Flow<Boolean>` per-slug MovieCard | `MovieCard.kt` | -98% recompose khi toggle Favorites |
+| P2: `MainTabsContent` — 1 HorizontalPager | `AppNavigation.kt` | Tab switch instant, không destroy-recreate |
+| P3: `runBlocking` → `suspend fun` | `WatchHistoryManager.kt`, `IntroOutroManager.kt`, `PlayerScreen.kt` | ANR risk = 0 |
+| P4: Room `@Index` trên `lastWatched` + `slug` | `WatchHistoryEntity.kt`, `AppDatabase.kt` | Query -80% khi data lớn, migration v1→v2 safe |
+| P5: Bỏ infinite heart pulse animation | `MovieCard.kt` | CPU -2~5% khi có nhiều Favorites |
+| P6: `hiddenSlugs` hoist ngoài `LazyColumn.item{}` | `HomeScreen.kt` | Flow stable, không re-subscribe mỗi recompose |
+| P7: `crossfade(300)` Coil global | `App.kt` | Smooth fade-in thay vì pop-in đột ngột |
+
+### 📦 Files Modified
+- `navigation/AppNavigation.kt` — MU-1 settledPage fix + P2 MainTabsContent
+- `ui/components/MovieCard.kt` — MU-2 pointerInput double-tap + P1 per-slug Flow + P5 animation
+- `ui/screens/home/HomeScreen.kt` — P1 derivedState, P6 hiddenSlugs hoist
+- `data/local/WatchHistoryManager.kt` — P3 suspend, remove runBlocking
+- `data/local/IntroOutroManager.kt` — P3 suspend, remove runBlocking
+- `ui/screens/player/PlayerScreen.kt` — P3 scope.launch wrappers
+- `data/db/entity/WatchHistoryEntity.kt` — P4 @Index annotations
+- `data/db/AppDatabase.kt` — P4 version 1→2, MIGRATION_1_2
+- `App.kt` — P7 crossfade(300)
+
 
 ## v1.20.5 — 2026-02-22 (Micro-UX Batch: Swipe, Popup, Stats, Menu)
 

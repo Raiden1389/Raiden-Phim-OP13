@@ -6,7 +6,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import xyz.raidenhub.phim.data.db.AppDatabase
 import xyz.raidenhub.phim.data.db.entity.IntroOutroEntity
 
@@ -36,23 +35,19 @@ object IntroOutroManager {
         Log.d(TAG, "init: Room-backed IntroOutroManager ready")
     }
 
-    /** Blocking lookup — called from player coroutine scope anyway */
-    fun getEffectiveConfig(slug: String, country: String): SeriesConfig? = runBlocking(Dispatchers.IO) {
+    /** Suspend lookup — gọi từ player coroutine scope */
+    suspend fun getEffectiveConfig(slug: String, country: String): SeriesConfig? =
         db.introOutroDao().getForSeries(slug)?.toSeriesConfig()
             ?: db.introOutroDao().getForCountry(country)?.toSeriesConfig()
-    }
 
-    fun hasSeriesOverride(slug: String): Boolean = runBlocking(Dispatchers.IO) {
+    suspend fun hasSeriesOverride(slug: String): Boolean =
         db.introOutroDao().getForSeries(slug) != null
-    }
 
-    fun getCountryDefault(country: String): SeriesConfig? = runBlocking(Dispatchers.IO) {
+    suspend fun getCountryDefault(country: String): SeriesConfig? =
         db.introOutroDao().getForCountry(country)?.toSeriesConfig()
-    }
 
-    fun getConfig(slug: String): SeriesConfig? = runBlocking(Dispatchers.IO) {
+    suspend fun getConfig(slug: String): SeriesConfig? =
         db.introOutroDao().getForSeries(slug)?.toSeriesConfig()
-    }
 
     fun getAllCountryDefaults(): Flow<List<IntroOutroEntity>> =
         db.introOutroDao().getAllCountryDefaults()

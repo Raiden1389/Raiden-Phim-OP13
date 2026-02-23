@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -31,6 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -38,6 +40,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
 
 import xyz.raidenhub.phim.PlayerActivity
 import xyz.raidenhub.phim.ui.screens.category.CategoryScreen
@@ -58,16 +61,26 @@ import xyz.raidenhub.phim.ui.theme.InterFamily
 
 
 // #39 — Refined transition specs (premium feel)
-private val enterAnim = fadeIn(tween(350)) +
-    slideInHorizontally(tween(350, easing = FastOutSlowInEasing)) { it / 5 } +
-    scaleIn(tween(350), initialScale = 0.92f)
+private val enterAnim = fadeIn(tween(300)) +
+    slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { it / 5 } +
+    scaleIn(tween(300), initialScale = 0.94f)
 private val exitAnim = fadeOut(tween(200)) +
-    scaleOut(tween(200), targetScale = 0.95f)
-private val popEnterAnim = fadeIn(tween(300)) +
-    slideInHorizontally(tween(300, easing = FastOutSlowInEasing)) { -it / 5 } +
-    scaleIn(tween(300), initialScale = 0.95f)
-private val popExitAnim = fadeOut(tween(250)) +
-    slideOutHorizontally(tween(250)) { it / 5 }
+    scaleOut(tween(200), targetScale = 0.96f)
+private val popEnterAnim = fadeIn(tween(280)) +
+    slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) { -it / 5 } +
+    scaleIn(tween(280), initialScale = 0.96f)
+private val popExitAnim = fadeOut(tween(220)) +
+    slideOutHorizontally(tween(220)) { it / 5 }
+
+// Detail screen — cinematic slide-up from card
+private val detailEnterAnim = fadeIn(tween(380, easing = FastOutSlowInEasing)) +
+    slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 3 } +
+    scaleIn(tween(380, easing = FastOutSlowInEasing), initialScale = 0.88f)
+private val detailExitAnim = fadeOut(tween(250)) +
+    scaleOut(tween(250), targetScale = 0.95f)
+private val detailPopExitAnim = fadeOut(tween(300)) +
+    slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { it / 3 } +
+    scaleOut(tween(300), targetScale = 0.90f)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -95,30 +108,44 @@ fun AppNavigation() {
     }
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { tabRoutes.size })
 
-    // MU-1: Sync pager → NavController when user swipes
-    LaunchedEffect(pagerState.currentPage, pagerState.isScrollInProgress) {
-        if (!pagerState.isScrollInProgress && currentRoute in tabRoutes) {
-            val targetRoute = tabRoutes[pagerState.currentPage]
-            if (currentRoute != targetRoute) {
-                navController.navigate(targetRoute) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                    restoreState = true
-                }
+    // MU-1 Fix: Dùng settledPage thay vì currentPage + isScrollInProgress
+    // settledPage chỉ update khi animation HOÀN TOÀN xong → không có race condition
+    LaunchedEffect(pagerState.settledPage) {
+        val targetRoute = tabRoutes[pagerState.settledPage]
+        // Đọc currentNavRoute trực tiếp từ navController (tránh stale closure)
+        val currentNavRoute = navController.currentBackStackEntry?.destination?.route
+        if (currentNavRoute != targetRoute && currentNavRoute in tabRoutes) {
+            navController.navigate(targetRoute) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
             }
         }
     }
 
-    // MU-1: Sync NavController → pager when tab tapped
+    // MU-1: Sync NavController → pager khi tap bottom bar
+    // Guard !isScrollInProgress: tránh fight khi user đang swipe ngược chiều
     LaunchedEffect(currentRoute) {
         val idx = tabRoutes.indexOf(currentRoute)
-        if (idx >= 0 && idx != pagerState.currentPage) {
+        if (idx >= 0 && idx != pagerState.settledPage && !pagerState.isScrollInProgress) {
             pagerState.animateScrollToPage(idx)
         }
     }
 
     // Hide bottom bar on non-tab screens
     val showBottomBar = currentRoute in tabRoutes
+    val coroutineScope = rememberCoroutineScope()
+
+    // MU-1: Helper navigate tab by index (dùng cho swipe bottom bar)
+    fun navigateToTabIndex(idx: Int) {
+        val route = tabRoutes.getOrNull(idx) ?: return
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+        coroutineScope.launch { pagerState.animateScrollToPage(idx) }
+    }
 
     Scaffold(
         containerColor = C.Background,
@@ -133,6 +160,14 @@ fun AppNavigation() {
                             launchSingleTop = true
                             restoreState = true
                         }
+                    },
+                    onSwipeLeft = {
+                        val next = (pagerState.settledPage + 1).coerceAtMost(tabRoutes.lastIndex)
+                        navigateToTabIndex(next)
+                    },
+                    onSwipeRight = {
+                        val prev = (pagerState.settledPage - 1).coerceAtLeast(0)
+                        navigateToTabIndex(prev)
                     }
                 )
             }
@@ -163,112 +198,69 @@ fun AppNavigation() {
                 )
             }
 
-            // MU-1: Tab screens wrapped in HorizontalPager for swipe navigation
+            // MU-1 (P2): Tất cả tab routes share 1 HorizontalPager instance — không destroy-recreate
             composable(Screen.Home.route) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    userScrollEnabled = true,
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    when (page) {
-                        0 -> HomeScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, positionMs, source ->
-                                startPlayerActivity(slug, server, ep, positionMs, source)
-                            },
-                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                        )
-                        1 -> SuperStreamScreen(
-                            onItemClick = { tmdbId, type ->
-                                navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
-                            },
-                            onBack = { navController.popBackStack() }
-                        )
-                        2 -> SearchScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
-                        )
-                        3 -> WatchHistoryScreen(
-                            onBack = { navController.popBackStack() },
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, source ->
-                                startPlayerActivity(slug, server, ep, source = source)
-                            }
-                        )
-                        4 -> SettingsScreen()
-                        else -> HomeScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, positionMs, source ->
-                                startPlayerActivity(slug, server, ep, positionMs, source)
-                            },
-                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                        )
-                    }
-                }
-            }
-
-            // Redirect Search/History/Settings/SuperStream to Home composable (pager handles them)
-            composable(Screen.Search.route) {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
-                    userScrollEnabled = true,
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    when (page) {
-                        0 -> HomeScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, positionMs, source ->
-                                startPlayerActivity(slug, server, ep, positionMs, source)
-                            },
-                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                        )
-                        1 -> SuperStreamScreen(
-                            onItemClick = { tmdbId, type ->
-                                navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
-                            },
-                            onBack = { navController.popBackStack() }
-                        )
-                        2 -> SearchScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) }
-                        )
-                        3 -> WatchHistoryScreen(
-                            onBack = { navController.popBackStack() },
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, source ->
-                                startPlayerActivity(slug, server, ep, source = source)
-                            }
-                        )
-                        4 -> SettingsScreen()
-                        else -> HomeScreen(
-                            onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                            onContinue = { slug, server, ep, positionMs, source ->
-                                startPlayerActivity(slug, server, ep, positionMs, source)
-                            },
-                            onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) }
-                        )
-                    }
-                }
-            }
-
-            // #36 — Watch History screen
-            composable(Screen.WatchHistory.route) {
-                WatchHistoryScreen(
-                    onBack = { navController.popBackStack() },
+                MainTabsContent(
+                    pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, source ->
-                        startPlayerActivity(slug, server, ep, source = source)
-                    }
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
+                )
+            }
+            composable(Screen.SuperStream.route) {
+                MainTabsContent(
+                    pagerState = pagerState,
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.Search.route) {
+                MainTabsContent(
+                    pagerState = pagerState,
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onBack = { navController.popBackStack() }
                 )
             }
 
+            // WatchHistory + Settings routes (tab 3 & 4 also served via pager when accessed directly)
+            composable(Screen.WatchHistory.route) {
+                MainTabsContent(
+                    pagerState = pagerState,
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onBack = { navController.popBackStack() }
+                )
+            }
             composable(Screen.Settings.route) {
-                SettingsScreen()
+                MainTabsContent(
+                    pagerState = pagerState,
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             composable(
                 Screen.Detail.route,
-                arguments = listOf(navArgument("slug") { type = NavType.StringType })
+                arguments = listOf(navArgument("slug") { type = NavType.StringType }),
+                enterTransition = { detailEnterAnim },
+                exitTransition = { detailExitAnim },
+                popEnterTransition = { popEnterAnim },
+                popExitTransition = { detailPopExitAnim }
             ) { entry ->
                 val slug = entry.arguments?.getString("slug") ?: ""
                 DetailScreen(
@@ -338,16 +330,7 @@ fun AppNavigation() {
                 )
             }
 
-            // ═══ SuperStream (English content) ═══
-            composable(Screen.SuperStream.route) {
-                SuperStreamScreen(
-                    onItemClick = { tmdbId, type ->
-                        navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type))
-                    },
-                    onBack = { navController.popBackStack() }
-                )
-            }
-
+            // SuperStreamDetail — non-tab fullscreen route
             composable(
                 Screen.SuperStreamDetail.route,
                 arguments = listOf(
@@ -382,17 +365,86 @@ private val navItems = listOf(
     NavItem(Screen.Settings.route, "Cài đặt", Icons.Default.Settings),
 )
 
+// P2: Single HorizontalPager instance shared across all tab routes
+// Tr\u01b0\u1edbc \u0111\u00e2y m\u1ed7i route t\u1ea1o 1 Pager ri\u00eang \u2192 destroy-recreate khi swipe tab
+// Gi\u1edd t\u1ea5t c\u1ea3 tab routes render c\u00f9ng 1 composable n\u00e0y
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MainTabsContent(
+    pagerState: androidx.compose.foundation.pager.PagerState,
+    onMovieClick: (String) -> Unit,
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit,
+    onCategoryClick: (String, String) -> Unit,
+    onSuperStreamItemClick: (tmdbId: Int, type: String) -> Unit,
+    onBack: () -> Unit,
+    onWatchlistClick: () -> Unit = {},
+    onPlaylistClick: () -> Unit = {}
+) {
+    // MU-1: userScrollEnabled=false — swipe chuyển tab chỉ ở bottom nav bar (không phải full-screen)
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize(),
+        userScrollEnabled = false,
+        beyondViewportPageCount = 1
+    ) { page ->
+        when (page) {
+            0 -> HomeScreen(
+                onMovieClick = onMovieClick,
+                onContinue = onContinue,
+                onCategoryClick = onCategoryClick
+            )
+            1 -> SuperStreamScreen(
+                onItemClick = onSuperStreamItemClick,
+                onBack = onBack
+            )
+            2 -> SearchScreen(onMovieClick = onMovieClick)
+            3 -> WatchHistoryScreen(
+                onBack = onBack,
+                onMovieClick = onMovieClick,
+                onContinue = { slug, server, ep, source -> onContinue(slug, server, ep, 0L, source) },
+                onWatchlistClick = onWatchlistClick,
+                onPlaylistClick = onPlaylistClick
+            )
+            4 -> SettingsScreen()
+            else -> HomeScreen(
+                onMovieClick = onMovieClick,
+                onContinue = onContinue,
+                onCategoryClick = onCategoryClick
+            )
+        }
+    }
+}
+
 @Composable
 private fun GlassBottomNav(
     currentRoute: String?,
-    onNavigate: (String) -> Unit
+    onNavigate: (String) -> Unit,
+    onSwipeLeft: () -> Unit = {},   // swipe trái → tab tiếp theo
+    onSwipeRight: () -> Unit = {}   // swipe phải → tab trước
 ) {
+    var totalDragX by remember { mutableFloatStateOf(0f) }
+    val swipeThresholdPx = with(androidx.compose.ui.platform.LocalDensity.current) { 48.dp.toPx() }
+
     // Glass container
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color(0xCC0D0D1A))  // 80% opaque — frosted effect
             .navigationBarsPadding()
+            // MU-1: Swipe gesture chỉ trên bottom nav bar
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDragX = 0f },
+                    onDragEnd = {
+                        when {
+                            totalDragX < -swipeThresholdPx -> onSwipeLeft()   // ← next tab
+                            totalDragX > swipeThresholdPx  -> onSwipeRight()  // → prev tab
+                        }
+                        totalDragX = 0f
+                    },
+                    onHorizontalDrag = { _, dragAmount -> totalDragX += dragAmount }
+                )
+            }
     ) {
         // Subtle top border glow
         Box(
@@ -427,11 +479,7 @@ private fun GlassNavItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.15f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 500f),
-        label = "nav_scale"
-    )
+    val iconScale = 1f  // No scale animation — chỉ color đổi khi chuyển tab
     val iconColor by animateColorAsState(
         targetValue = if (isSelected) C.Primary else C.TextSecondary,
         animationSpec = tween(250),
@@ -478,32 +526,19 @@ private fun GlassNavItem(
             }
         }
 
-        Spacer(Modifier.height(2.dp))
-
-        // Animated label
-        AnimatedVisibility(
-            visible = isSelected,
-            enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-            exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
-        ) {
-            Text(
-                item.label,
-                color = C.Primary,
-                fontFamily = InterFamily,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 10.sp,
-                maxLines = 1
-            )
-        }
-        if (!isSelected) {
-            Text(
-                item.label,
-                color = C.TextMuted,
-                fontFamily = InterFamily,
-                fontWeight = FontWeight.Normal,
-                fontSize = 10.sp,
-                maxLines = 1
-            )
-        }
+        // Label luôn hiện, chỉ đổi màu — zero layout shift
+        val labelColor by animateColorAsState(
+            targetValue = if (isSelected) C.Primary else C.TextSecondary,
+            animationSpec = tween(250),
+            label = "nav_label_color"
+        )
+        Text(
+            item.label,
+            color = labelColor,
+            fontFamily = InterFamily,
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
     }
 }

@@ -1,4 +1,4 @@
-package xyz.raidenhub.phim.ui.screens.player
+﻿package xyz.raidenhub.phim.ui.screens.player
 
 import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.IntroOutroManager
@@ -16,9 +16,11 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -227,6 +229,8 @@ fun PlayerScreen(
         ExoPlayer.Builder(context)
             .setLoadControl(loadControl)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setWakeMode(android.os.PowerManager.PARTIAL_WAKE_LOCK)  // TV fix: giữ CPU+WiFi khi buffer, không bị power saving ngắt
+            .setHandleAudioBecomingNoisy(true)  // tự pause khi rút tai nghe/HDMI
             .build()
             .apply {
                 playWhenReady = true
@@ -236,6 +240,13 @@ fun PlayerScreen(
     // Play current episode — seek to saved position only on initial episode load
     var hasSeekOnce by remember { mutableStateOf(false) }
     var lastLoadedUrl by remember { mutableStateOf("") }
+
+    // SuperStream: ep URL đang được fetch (placeholder rỗng) → show loading
+    val isFetchingEp = remember(currentEp, episodes, source) {
+        source == "superstream" &&
+        episodes.getOrNull(currentEp)?.linkM3u8.isNullOrBlank() &&
+        episodes.isNotEmpty()
+    }
 
     LaunchedEffect(currentEp, episodes) {
         if (episodes.isNotEmpty()) {
@@ -257,9 +268,9 @@ fun PlayerScreen(
     }
 
     // ═══ INTRO/OUTRO CONFIG (3-level hierarchy: series → country → null) ═══
-    var effectiveConfig by remember { mutableStateOf(IntroOutroManager.getEffectiveConfig(slug, movieCountry)) }
-    // Refresh when country loads (async from ViewModel)
-    LaunchedEffect(movieCountry) {
+    // P3: Initial load via LaunchedEffect (suspend fun)
+    var effectiveConfig by remember { mutableStateOf<IntroOutroManager.SeriesConfig?>(null) }
+    LaunchedEffect(slug, movieCountry) {
         effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
     }
     // Promote dialog state
@@ -271,18 +282,45 @@ fun PlayerScreen(
     LaunchedEffect(currentEp) { autoNextTriggered = false }
 
     LaunchedEffect(player, currentEp, autoNextMs, autoPlayEnabled, effectiveConfig) {
+        var prefetchTriggered = false  // chỉ fetch 1 lần/tập
         while (true) {
             delay(3000)
-            if (!autoPlayEnabled || !vm.hasNext() || autoNextTriggered) continue
             val dur = player.duration
             val pos = player.currentPosition
             if (dur <= 0) continue
 
+            // ─── SuperStream near-end prefetch ───
+            // Trigger khi còn < 3 phút HOẶC < 15% thời lượng còn lại
+            if (source == "superstream" && vm.hasNext() && !prefetchTriggered) {
+                val timeRemaining = dur - pos
+                val percentRemaining = timeRemaining.toFloat() / dur
+                if (timeRemaining < 3 * 60 * 1000L || percentRemaining < 0.15f) {
+                    val nextIdx = currentEp + 1
+                    val nextEpItem = episodes.getOrNull(nextIdx)
+                    if (nextEpItem != null && nextEpItem.linkM3u8.isBlank()
+                        && nextEpItem.slug.startsWith("ss::")) {
+                        val parts = nextEpItem.slug.split("::")
+                        if (parts.size == 4) {
+                            val s = parts[2].toIntOrNull()
+                            val e = parts[3].toIntOrNull()
+                            if (s != null && e != null) {
+                                vm.fetchSuperStreamEp(s, e)
+                                prefetchTriggered = true
+                            }
+                        }
+                    } else {
+                        prefetchTriggered = true  // URL đã có, đánh dấu luôn
+                    }
+                }
+            }
+
+            // ─── Auto-next logic (chỉ cho VN source, không áp cho SuperStream) ───
+            if (!autoPlayEnabled || !vm.hasNext() || autoNextTriggered) continue
+            if (source == "superstream") continue  // SS: user tự next hoặc tập kết thúc tự nhiên
+
             val shouldNext = if (effectiveConfig?.hasOutro == true) {
-                // Mark-based: outro đã được đánh dấu
                 pos >= effectiveConfig!!.outroStartMs
             } else {
-                // Fallback: country-based timing
                 val remaining = dur - pos
                 remaining in 1..autoNextMs
             }
@@ -300,11 +338,13 @@ fun PlayerScreen(
         }
     }
 
-    // Fallback: auto-next khi hết tập hoàn toàn
+    // Fallback: auto-next khi hết tập hoàn toàn (chỉ cho VN, không cho SuperStream)
     LaunchedEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED && vm.hasNext() && SettingsManager.autoPlayNext.value) {
+                if (state == Player.STATE_ENDED && vm.hasNext()
+                    && SettingsManager.autoPlayNext.value
+                    && source != "superstream") {
                     vm.nextEp()
                 }
             }
@@ -347,12 +387,20 @@ fun PlayerScreen(
                     episodeIdx = saveEpIdx, episodeName = epName,
                     positionMs = pos, durationMs = dur
                 )
+                // Watched Episodes fix: mark SuperStream episode as watched khi xem ≥ 70%
+                if (source == "superstream" && tmdbId > 0) {
+                    val progress = pos.toFloat() / dur
+                    if (progress >= 0.70f) {
+                        WatchHistoryManager.markWatched("ss_tv_$tmdbId", saveEpIdx)
+                    }
+                }
             }
             player.release()
         }
     }
 
     // ═══ UI STATES ═══
+    val scope = rememberCoroutineScope()  // P3: for suspend IntroOutroManager calls
     var showControls by remember { mutableStateOf(true) }
     var speedIdx by remember { mutableIntStateOf(2) } // 1.0x default
     val speeds = Constants.PLAYBACK_SPEEDS
@@ -383,6 +431,15 @@ fun PlayerScreen(
     // Track position for seek bar
     var currentPos by remember { mutableStateOf(0L) }
     var duration by remember { mutableStateOf(0L) }
+
+    // PL-4: Remaining time toggle (tap time display)
+    var showRemaining by remember { mutableStateOf(false) }
+    // PL-3: Horizontal swipe seek
+    var isHSwipeSeeking by remember { mutableStateOf(false) }
+    var hSwipeSeekPos by remember { mutableStateOf(0L) }
+    // PL-1 Opt C: Seekbar drag tooltip
+    var isSeekbarDragging by remember { mutableStateOf(false) }
+    var seekbarDragFraction by remember { mutableStateOf(0f) }
 
     // Skip Intro: derive from mark config + current position
     val showSkipIntro by remember {
@@ -516,6 +573,34 @@ fun PlayerScreen(
                 .background(Color.Black)
         )
 
+        // ═══ PL-3: Horizontal swipe seek — invisible overlay ═══
+        if (!isLocked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                isHSwipeSeeking = true
+                                hSwipeSeekPos = player.currentPosition
+                                showControls = true
+                            },
+                            onDragEnd = {
+                                player.seekTo(hSwipeSeekPos)
+                                currentPos = hSwipeSeekPos
+                                isHSwipeSeeking = false
+                            },
+                            onDragCancel = { isHSwipeSeeking = false }
+                        ) { change, delta ->
+                            change.consume()
+                            val seekMs = (delta * 200).toLong()
+                            hSwipeSeekPos = (hSwipeSeekPos + seekMs)
+                                .coerceIn(0L, player.duration.coerceAtLeast(0L))
+                        }
+                    }
+            )
+        }
+
         // ═══ SEEK ANIMATION OVERLAY (OTT style) ═══
         AnimatedVisibility(
             visible = seekAnimSide != 0,
@@ -543,6 +628,38 @@ fun PlayerScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        }
+
+        // PL-3: Horizontal swipe seek billboard
+        AnimatedVisibility(
+            visible = isHSwipeSeeking,
+            enter = fadeIn(tween(80)),
+            exit = fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(Color.Black.copy(0.78f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 28.dp, vertical = 14.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "↔  ${formatTime(hSwipeSeekPos)}",
+                        color = Color.White,
+                        fontFamily = JakartaFamily,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (duration > 0) {
+                        Text(
+                            "/ ${formatTime(duration)}",
+                            color = Color.White.copy(0.55f),
+                            fontFamily = InterFamily,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }
@@ -736,11 +853,19 @@ fun PlayerScreen(
                         }
                     }
 
-                    // ═══ CENTER: Play/Pause (Red Gradient Circle) ═══
+                    // ═══ CENTER: Play/Pause hoặc Loading (SuperStream fetch) ═══
                     Box(
                         modifier = Modifier.align(Alignment.Center),
                         contentAlignment = Alignment.Center
                     ) {
+                        if (isFetchingEp) {
+                            // SuperStream đang fetch URL tập tiếp theo
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(48.dp), strokeWidth = 3.dp)
+                                Spacer(Modifier.height(8.dp))
+                                Text("⏳ Đang tải tập...", color = Color.White, fontSize = 13.sp)
+                            }
+                        } else {
                         // Skip previous
                         if (currentEp > 0) {
                             IconButton(
@@ -800,8 +925,9 @@ fun PlayerScreen(
                             ) {
                                 Icon(Icons.Default.SkipNext, "Next", tint = Color.White, modifier = Modifier.size(36.dp))
                             }
-                        }
-                    }
+                        } // end SkipNext if
+                        } // end else
+                    } // end outer center Box
 
                     // ═══ BOTTOM SECTION ═══
                     Column(
@@ -810,14 +936,42 @@ fun PlayerScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 4.dp)
                     ) {
+                        // PL-1 Opt C: Seek tooltip (shows target time above slider while dragging)
+                        AnimatedVisibility(
+                            visible = isSeekbarDragging && duration > 0,
+                            enter = fadeIn(tween(80)),
+                            exit = fadeOut(tween(150))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 2.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    formatTime((seekbarDragFraction * duration).toLong()),
+                                    color = Color.White,
+                                    fontFamily = JakartaFamily,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .background(C.Primary.copy(0.88f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 12.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+
                         // ═══ Red Seekbar ═══
                         Slider(
                             value = if (duration > 0) currentPos.toFloat() / duration.toFloat() else 0f,
                             onValueChange = { fraction ->
+                                isSeekbarDragging = true
+                                seekbarDragFraction = fraction
                                 val seekTo = (fraction * duration).toLong()
                                 player.seekTo(seekTo)
                                 currentPos = seekTo
                             },
+                            onValueChangeFinished = { isSeekbarDragging = false },
                             colors = SliderDefaults.colors(
                                 thumbColor = C.Primary,
                                 activeTrackColor = C.Primary,
@@ -826,16 +980,23 @@ fun PlayerScreen(
                             modifier = Modifier.fillMaxWidth().height(24.dp)
                         )
 
-                        // Time display
+                        // PL-4: Time display — tap để toggle elapsed ↔ remaining
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
                             Text(
-                                "${formatTime(currentPos)} / ${formatTime(duration)}",
+                                if (showRemaining && duration > 0)
+                                    "-${formatTime(duration - currentPos)}"
+                                else
+                                    "${formatTime(currentPos)} / ${formatTime(duration)}",
                                 color = Color.White.copy(0.8f),
                                 fontFamily = InterFamily,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                modifier = Modifier
+                                    .background(Color.White.copy(0.08f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .clickable { showRemaining = !showRemaining }
                             )
                         }
 
@@ -1001,10 +1162,20 @@ fun PlayerScreen(
     }
 
     // ═══ SETTINGS BOTTOM SHEET (Mark Intro/Outro) ═══
+    // P3: LaunchedEffect-driven state for suspend IntroOutroManager calls
+    var settingsHasOverride by remember { mutableStateOf(false) }
+    var settingsCountryDefault by remember { mutableStateOf<IntroOutroManager.SeriesConfig?>(null) }
+    LaunchedEffect(showSettingsSheet, movieCountry) {
+        if (showSettingsSheet) {
+            settingsHasOverride = IntroOutroManager.hasSeriesOverride(slug)
+            settingsCountryDefault = IntroOutroManager.getCountryDefault(movieCountry)
+        }
+    }
+
     if (showSettingsSheet) {
         val countryName = IntroOutroManager.getCountryDisplayName(movieCountry)
-        val countryDefault = IntroOutroManager.getCountryDefault(movieCountry)
-        val hasOverride = IntroOutroManager.hasSeriesOverride(slug)
+        val countryDefault = settingsCountryDefault
+        val hasOverride = settingsHasOverride
 
         ModalBottomSheet(
             onDismissRequest = { showSettingsSheet = false },
@@ -1099,7 +1270,7 @@ fun PlayerScreen(
                     OutlinedButton(
                         onClick = {
                             IntroOutroManager.saveIntroStart(slug, player.currentPosition)
-                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                             Toast.makeText(context, "✅ Intro Start: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
                             showPromoteDialog = true
                         },
@@ -1112,7 +1283,7 @@ fun PlayerScreen(
                     Button(
                         onClick = {
                             IntroOutroManager.saveIntroEnd(slug, player.currentPosition)
-                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                             Toast.makeText(context, "✅ Intro End: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
                             showPromoteDialog = true
                         },
@@ -1125,7 +1296,7 @@ fun PlayerScreen(
                     Button(
                         onClick = {
                             IntroOutroManager.saveOutroStart(slug, player.currentPosition)
-                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                             Toast.makeText(context, "✅ Outro Start: ${formatTime(player.currentPosition)}", Toast.LENGTH_SHORT).show()
                             showPromoteDialog = true
                         },
@@ -1143,7 +1314,7 @@ fun PlayerScreen(
                     TextButton(
                         onClick = {
                             IntroOutroManager.resetConfig(slug)
-                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                             Toast.makeText(context, "🗑 Đã xoá config riêng → dùng mặc định $countryName", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1157,7 +1328,7 @@ fun PlayerScreen(
                     TextButton(
                         onClick = {
                             IntroOutroManager.resetCountryDefault(movieCountry)
-                            effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                            scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                             Toast.makeText(context, "🗑 Đã xoá mặc định $countryName", Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1196,7 +1367,7 @@ fun PlayerScreen(
                 Button(
                     onClick = {
                         IntroOutroManager.promoteToCountryDefault(slug, movieCountry)
-                        effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry)
+                        scope.launch { effectiveConfig = IntroOutroManager.getEffectiveConfig(slug, movieCountry) }
                         Toast.makeText(context, "⭐ Đã đặt mặc định cho phim $countryName", Toast.LENGTH_SHORT).show()
                         showPromoteDialog = false
                     },

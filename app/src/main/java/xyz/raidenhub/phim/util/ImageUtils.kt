@@ -1,22 +1,15 @@
 package xyz.raidenhub.phim.util
 
 object ImageUtils {
-    private const val PROXY_BASE = "https://wsrv.nl/?url="
-    private const val CARD_PARAMS = "&w=200&h=300&fit=cover&output=webp&maxage=7d"
-    private const val DETAIL_PARAMS = "&w=400&h=600&fit=cover&output=webp&maxage=7d&dpr=1&sharp=1"
-    private const val HERO_PARAMS = "&w=800&h=450&fit=cover&output=webp&maxage=7d"
+    // Phone APK: direct CDN URL, không cần wsrv.nl proxy
+    // wsrv.nl hợp lý cho TV APK (2GB RAM, GPU yếu) nhưng phone CDN VN đã đủ nhanh
+    // Direct URL = 1 URL duy nhất → Coil cache reuse giữa card / shimmer / detail
 
-    fun cardImage(path: String, source: String = "ophim"): String {
-        return "$PROXY_BASE${originalUrl(source, path)}$CARD_PARAMS"
-    }
+    fun cardImage(path: String, source: String = "ophim"): String = originalUrl(source, path)
 
-    fun detailImage(path: String, source: String = "ophim"): String {
-        return "$PROXY_BASE${originalUrl(source, path)}$DETAIL_PARAMS"
-    }
+    fun detailImage(path: String, source: String = "ophim"): String = originalUrl(source, path)
 
-    fun heroImage(path: String, source: String = "ophim"): String {
-        return "$PROXY_BASE${originalUrl(source, path)}$HERO_PARAMS"
-    }
+    fun heroImage(path: String, source: String = "ophim"): String = originalUrl(source, path)
 
     fun originalUrl(source: String, path: String): String {
         if (path.startsWith("http")) return path

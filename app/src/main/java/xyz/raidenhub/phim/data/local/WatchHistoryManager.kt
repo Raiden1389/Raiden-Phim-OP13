@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import xyz.raidenhub.phim.data.db.AppDatabase
 import xyz.raidenhub.phim.data.db.entity.ContinueWatchingEntity
 import xyz.raidenhub.phim.data.db.entity.WatchedEpisodeEntity
@@ -61,9 +60,8 @@ object WatchHistoryManager {
     /** Compat alias — UI uses continueList.collectAsState() */
     val continueList: Flow<List<ContinueItem>> get() = continueWatching
 
-    fun getContinueItem(slug: String): ContinueItem? = runBlocking(Dispatchers.IO) {
+    suspend fun getContinueItem(slug: String): ContinueItem? =
         db.watchHistoryDao().getContinueItem(slug)?.toContinueItem()
-    }
 
     fun updateContinue(
         slug: String,
@@ -114,9 +112,8 @@ object WatchHistoryManager {
     fun getWatchedEpisodes(slug: String): Flow<List<Int>> =
         db.watchHistoryDao().getWatchedEpisodes(slug)
 
-    fun getWatchedEpisodesSync(slug: String): List<Int> = runBlocking(Dispatchers.IO) {
+    suspend fun getWatchedEpisodesSync(slug: String): List<Int> =
         db.watchHistoryDao().getWatchedEpisodesOnce(slug)
-    }
 
     fun markWatched(slug: String, episodeIdx: Int) {
         scope.launch {
@@ -126,9 +123,8 @@ object WatchHistoryManager {
         }
     }
 
-    fun isWatched(slug: String, episodeIdx: Int): Boolean = runBlocking(Dispatchers.IO) {
+    suspend fun isWatched(slug: String, episodeIdx: Int): Boolean =
         db.watchHistoryDao().isWatched(slug, episodeIdx)
-    }
 
     /** For #UX-2 Episode Tracker Badge */
     suspend fun watchedCount(slug: String): Int =

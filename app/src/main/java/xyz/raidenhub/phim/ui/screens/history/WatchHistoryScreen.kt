@@ -38,7 +38,9 @@ import xyz.raidenhub.phim.util.ImageUtils
 fun WatchHistoryScreen(
     onBack: () -> Unit,
     onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int, source: String) -> Unit
+    onContinue: (slug: String, server: Int, episode: Int, source: String) -> Unit,
+    onWatchlistClick: () -> Unit = {},
+    onPlaylistClick: () -> Unit = {}
 ) {
     val continueList by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
 
@@ -57,6 +59,16 @@ fun WatchHistoryScreen(
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = C.TextPrimary)
+                }
+            },
+            actions = {
+                // Playlist
+                IconButton(onClick = onPlaylistClick) {
+                    Icon(Icons.Default.PlaylistPlay, "📋 Playlist", tint = C.TextSecondary)
+                }
+                // Xem Sau (Watchlist)
+                IconButton(onClick = onWatchlistClick) {
+                    Icon(Icons.Default.Bookmark, "🔖 Xem Sau", tint = C.Accent)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = C.Background)

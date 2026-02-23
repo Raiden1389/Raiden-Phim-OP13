@@ -11,8 +11,8 @@ object Constants {
     const val OPHIM_IMG_CDN  = "https://img.ophim.live/uploads/movies/"
     const val KKPHIM_IMG_CDN = "https://phimimg.com/"
 
-    // ═══ Country Filter (phone: no filter by default) ═══
-    val ALLOWED_COUNTRIES: Set<String>? = null // null = show all
+    // ═══ Country Filter — Scope: Hàn / Trung / Mỹ only ═══
+    val ALLOWED_COUNTRIES: Set<String> = setOf("han-quoc", "trung-quoc", "au-my")
 
     // ═══ Network ═══
     const val NETWORK_TIMEOUT_SECONDS = 10L

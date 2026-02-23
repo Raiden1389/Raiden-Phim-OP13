@@ -17,6 +17,11 @@ class HomeViewModel : ViewModel() {
 
     fun load() {
         viewModelScope.launch {
+            // Cache hit → Success ngay, không qua Loading → zero shimmer khi swipe tab
+            MovieRepository.getCachedHomeData()?.let {
+                _state.value = HomeState.Success(it)
+                return@launch
+            }
             _state.value = HomeState.Loading
             MovieRepository.getHomeData()
                 .onSuccess { _state.value = HomeState.Success(it) }

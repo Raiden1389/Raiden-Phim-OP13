@@ -6,6 +6,7 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.request.allowHardware
+import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
 import xyz.raidenhub.phim.data.api.ApiClient
 import xyz.raidenhub.phim.data.db.AppDatabase
@@ -53,21 +54,22 @@ class App : Application() {
             EpisodeCheckWorker.schedule(this)
         }
 
-        // TD-3: Coil cache tuning — explicit 200MB disk + 50MB memory + hardware bitmaps
+        // TD-3: Coil cache — 2GB disk (user có 100GB free) + 150MB memory
         SingletonImageLoader.setSafe {
             ImageLoader.Builder(this)
                 .memoryCache {
                     MemoryCache.Builder()
-                        .maxSizeBytes(50 * 1024 * 1024) // 50 MB
+                        .maxSizeBytes(150 * 1024 * 1024) // 150 MB
                         .build()
                 }
                 .diskCache {
                     DiskCache.Builder()
                         .directory(cacheDir.resolve("image_cache").toOkioPath())
-                        .maxSizeBytes(200 * 1024 * 1024) // 200 MB
+                        .maxSizeBytes(2L * 1024 * 1024 * 1024) // 2 GB
                         .build()
                 }
                 .allowHardware(true) // GPU-accelerated bitmaps
+                .crossfade(300)      // P7: Smooth fade-in
                 .build()
         }
     }

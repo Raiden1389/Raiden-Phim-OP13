@@ -45,22 +45,53 @@ object MovieRepository {
         val source: String = "ophim"
     )
 
+    // ─── In-memory detail cache (TTL 5 phút) ───────────────────────────────
+    // Back rồi vào lại cùng Detail → instant, không re-fetch network
+    private data class CacheEntry(val result: DetailResult, val timestamp: Long)
+    private val detailCache = LinkedHashMap<String, CacheEntry>(100, 0.75f, true)
+    private const val CACHE_TTL_MS = 30 * 60 * 1000L  // 30 phút
+    private const val CACHE_MAX = 100
+
+    private fun getCached(slug: String): DetailResult? {
+        val entry = detailCache[slug] ?: return null
+        if (System.currentTimeMillis() - entry.timestamp > CACHE_TTL_MS) {
+            detailCache.remove(slug)
+            return null
+        }
+        return entry.result
+    }
+
+    private fun putCache(slug: String, result: DetailResult) {
+        if (detailCache.size >= CACHE_MAX) {
+            detailCache.entries.firstOrNull()?.key?.let { detailCache.remove(it) }
+        }
+        detailCache[slug] = CacheEntry(result, System.currentTimeMillis())
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     suspend fun getMovieDetail(slug: String): Result<DetailResult> {
+        // Cache hit → trả ngay, không fetch network
+        getCached(slug)?.let { return Result.success(it) }
+
         return safeCall {
             // Try OPhim first
             try {
                 val response = api.getMovieDetail(slug)
                 val movie = response.data?.item ?: throw AppError.ParseError("Not found on OPhim")
                 val episodes = movie.episodes.ifEmpty { response.data?.episodes.orEmpty() }
-                return@safeCall DetailResult(movie, episodes, "ophim")
+                val result = DetailResult(movie, episodes, "ophim")
+                putCache(slug, result)
+                return@safeCall result
             } catch (e: AppError.NetworkError) {
-                throw e  // Propagate network error — retry thay vì fallback
+                throw e
             } catch (_: Exception) { }
-            // Fallback to KKPhim (chỉ khi OPhim 404/parse fail)
+            // Fallback to KKPhim
             val response = kkApi.getMovieDetail(slug)
             val movie = response.data?.item ?: throw AppError.ParseError("Not found on both sources")
             val episodes = movie.episodes.ifEmpty { response.data?.episodes.orEmpty() }
-            DetailResult(movie, episodes, "kkphim")
+            val result = DetailResult(movie, episodes, "kkphim")
+            putCache(slug, result)
+            result
         }
     }
 
@@ -74,7 +105,20 @@ object MovieRepository {
         val tvShows: List<Movie> = emptyList()
     )
 
-    suspend fun getHomeData(): Result<HomeData> = safeCall {
+    // ─── In-memory Home cache (TTL 5 phút) ────────────────────────────────
+    private var homeCacheData: HomeData? = null
+    private var homeCacheTime: Long = 0L
+    private const val HOME_CACHE_TTL_MS = 60 * 60 * 1000L  // 1 giờ
+
+    fun getCachedHomeData(): HomeData? {
+        val data = homeCacheData ?: return null
+        return if (System.currentTimeMillis() - homeCacheTime < HOME_CACHE_TTL_MS) data else null
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    suspend fun getHomeData(): Result<HomeData> {
+        getCachedHomeData()?.let { return Result.success(it) }
+        return safeCall {
         coroutineScope {
             val newD  = async { api.getNewMovies(1).data?.items.orEmpty().filterCountry() }
             val serD  = async { api.getSeries(1).data?.items.orEmpty().filterCountry().filterTrailer().sortNewest() }
@@ -92,13 +136,18 @@ object MovieRepository {
                         .sortNewest()
                 } catch (_: Exception) { emptyList() }
             }
-            HomeData(newD.await(), serD.await(), movD.await(), aniD.await(), korD.await(), tvD.await())
+            val result = HomeData(newD.await(), serD.await(), movD.await(), aniD.await(), korD.await(), tvD.await())
+            homeCacheData = result
+            homeCacheTime = System.currentTimeMillis()
+            result
+        }
         }
     }
 
     // ═══ Helpers ═══
     private fun List<Movie>.filterCountry(): List<Movie> {
-        val allowed = Constants.ALLOWED_COUNTRIES ?: return this
+        // Scope cố định: Hàn / Trung / Mỹ (Constants.ALLOWED_COUNTRIES)
+        val allowed = Constants.ALLOWED_COUNTRIES
         return filter { m -> m.country.isEmpty() || m.country.any { it.slug in allowed } }
     }
 

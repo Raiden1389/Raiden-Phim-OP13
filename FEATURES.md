@@ -1,6 +1,6 @@
 # 🎬 RaidenPhim — Tính Năng
 
-> **Phiên bản:** v1.20.2 · **Build:** 58 · **Cập nhật:** 2026-02-22
+> **Phiên bản:** v1.20.6 · **Build:** 58 · **Cập nhật:** 2026-02-23
 
 ---
 
@@ -13,8 +13,7 @@
 | ❤️ **Yêu thích** | Row phim đã yêu thích, truy cập nhanh |
 | 🕛 **Lịch sử** | Row lịch sử xem gần đây |
 | 📺 **Phim bộ / Lẻ / Hoạt hình** | Các hàng ngang theo danh mục, tự tải từ API|
-| 🌅 **Lời chào thông minh** | "Chào buổi sáng / chiều / tối" theo giờ thực tế |
-| 🏷️ **Filter đang hoạt động** | Badge hiển thị khi có filter quốc gia / thể loại đang bật |
+| 🌅 **Lời chào thông minh** | 7 khung giờ chi tiết, xưng hô Sếp/Tông Chủ xen kẽ, emoji theo buổi |
 | 🔄 **Pull-to-Refresh** | Kéo xuống để làm mới — custom indicator Raiden style (purple spinner, dark surface) |
 | ⏭️ **Nút "Xem thêm"** | Header section có › để mở danh sách đầy đủ |
 | ⚡ **Quick Play** | Long-press poster bất kỳ → haptic + launch player ngay, bỏ qua Detail |
@@ -46,8 +45,9 @@
 | 🖼️ **Parallax Backdrop** | Poster cuộn parallax 0.5x speed với scale-up depth, fade-out, gradient overlay cinematic |
 | 🎨 **Dynamic Color** | Trích xuất dominant color từ poster → tint nút Play + badge chất lượng, animated transition |
 | ✨ **Entrance Animation** | Fade + scale animation khi mở Detail — hiệu ứng card → full-screen |
-| ⭐ **IMDb Rating** | Điểm số thực từ OMDB API (nếu phim có trên IMDb) |
-| 🍅 **TMDB Rating** | Điểm số từ TMDB API, hiển thị song song với IMDb |
+| ⭐ **IMDb Rating** | Điểm số thực từ OMDB API, **count-up animation** khi load xong |
+| 🍅 **TMDB Rating** | Điểm số từ TMDB API, **count-up animation**, hiển song song với IMDb |
+| 📅 **Năm phát hành** | **Animated counter** đếm từ 0 lên — premium feel |
 | 📖 **Mô tả mở rộng** | Giới hạn 4 dòng, gradient fade khi thu gọn, tap "Xem thêm ▼" để expand |
 | 🏷️ **Badge thông tin** | Năm / Quốc gia / Thể loại / Chất lượng |
 | 🎭 **Diễn viên** | Ảnh diễn viên thật từ TMDB Credits API, circular crop, fallback emoji |
@@ -72,6 +72,9 @@
 | ⏮️⏭️ **Tập Trước / Tiếp** | Nút chuyển tập ngay trong player |
 | ⏩ **Auto-play next** | Tự động chuyển tập tiếp theo sau khi kết thúc (bật/tắt trong Settings) |
 | 👆 **Gesture seek** | Double-tap trái/phải ±10 giây |
+| ↔️ **Swipe Seek (PL-3)** | Vuốt ngang = seek liên tục, 1px≈200ms. Billboard overlay hiện vị trí target |
+| ⏱️ **Remaining Time (PL-4)** | Tap vào time → toggle: `elapsed/total` ↔ `-còn lại` |
+| 🔦 **Seekbar Tooltip (PL-1)** | Kéo seekbar → tooltip đỏ hiện thời gian target phía trên |
 | 🔆 **Gesture brightness** | Vuốt dọc trái → điều chỉnh độ sáng |
 | 🔊 **Gesture volume** | Vuốt dọc phải → điều chỉnh âm lượng |
 | 🔡 **Subtitle Picker** | Chọn phụ đề (VI / EN / JP...) từ nhiều nguồn |
@@ -86,8 +89,8 @@
 
 | Tính năng | Mô tả |
 |-----------|-------|
-| 🗺️ **Genre Hub** | Screen thể loại với icon grid — Hành động / Kinh dị / Tình cảm / Cổ trang... |
-| 🌍 **Country Filter** | Chip lọc theo quốc gia trong CategoryScreen |
+| 🗺️ **Genre Hub** | Screen thể loại với icon grid — mỗi card có **gradient màu riêng** theo thể loại (`GenreColors.kt`) |
+| 🇺🇸🇰🇷🇨🇳 **Country Filter** | Scope cố định: Hàn / Trung / Mỹ. Chip lọc trong CategoryScreen (4 tùy chọn) |
 | 📅 **Year Filter** | Chip lọc theo năm (Tất cả / 2025~2018) trong CategoryScreen |
 | ♾️ **Infinite Scroll** | Tự tải thêm khi cuộn đến cuối, loading spinner |
 
@@ -130,6 +133,12 @@
 - Toggle ❤️ bất kỳ phim → lưu persistent
 - Row yêu thích trên HomeScreen
 
+### Episode Tracker Badge (UX-2)
+- Progress bar đỏ mỏng 3dp ở cuối poster phim bộ — fill theo % tập đã xem
+- Badge "X/Y" góc dưới phải trên mỗi poster
+- Chỉ hiện với phim bộ đang xem dở (watchedCount > 0 AND totalEp > 1)
+- Reactive via Room Flow — cập nhật ngay khi xem xong tập
+
 ---
 
 ## ⚙️ Cài Đặt
@@ -156,7 +165,7 @@
 | **Target Android** | Android 15 (API 35) |
 | **Language** | Kotlin + Jetpack Compose |
 | **Architecture** | MVVM · ViewModel · StateFlow |
-| **Image loading** | Coil 3 + wsrv.nl image proxy (resize + compress server-side) |
+| **Image loading** | Coil 3 — direct CDN URL (OPhim/KKPhim Cloudflare Asia). 80MB memory cache + 400MB disk cache |
 | **Video** | ExoPlayer (Media3) |
 | **Navigation** | Compose Navigation + Separate Activity cho Player |
 | **Storage** | **Room DB** (9 DAOs + 9 Entities — Favorites, History, SearchHistory, Watchlist, Playlist, HeroFilter, SectionOrder, IntroOutro, Settings) |
@@ -170,7 +179,9 @@
 ### Đang lên kế hoạch:
 - **#P-1** Subtitle Style (font, size, màu, opacity)
 - **#P-2** Subtitle Position (slider Y)
-- **#S-5** Dynamic Trending — từ khóa trending tính từ search history aggregate
+- **#UX-1** Smart Home theo ngữ cảnh (giờ + lịch sử)
+- **#UX-3** Quick Rating Emoji (🔥👍😐💤 sau khi xem)
+- **#PL-6** Smart Intro Detection per-country
 - **#TD-5** Hilt DI (thay object singleton bằng @Inject)
 - **#TD-9** Offline Mode — cache Home data, banner "Đang offline"
 - **#B-3** Shared Element Transition (Navigation 2.8+ API)

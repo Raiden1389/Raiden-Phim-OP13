@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import xyz.raidenhub.phim.data.db.dao.*
 import xyz.raidenhub.phim.data.db.entity.*
 
@@ -21,7 +23,7 @@ import xyz.raidenhub.phim.data.db.entity.*
         SettingEntity::class,
         SearchHistoryEntity::class,
     ],
-    version = 1,
+    version = 2,   // v2: Added indexes on lastWatched, watched_episodes.slug
     exportSchema = true   // Lưu schema JSON → schemas/ folder (cần cho Room auto-migration sau này)
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -39,6 +41,14 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         private const val DB_NAME = "raiden_phim.db"
 
+        // P4: Migration 1→2 — thêm index, không xóa data
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_continue_watching_lastWatched ON continue_watching(lastWatched)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_watched_episodes_slug ON watched_episodes(slug)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -49,9 +59,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 )
-                    // Fallback: nếu schema thay đổi mà chưa có migration → xóa DB, recreate
-                    // TODO: thay bằng addMigrations() khi lên version 2+
-                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .addMigrations(MIGRATION_1_2)  // Safe migration — không mất data
+                    .fallbackToDestructiveMigration(dropAllTables = true)  // fallback nếu có version khác
                     .build()
                     .also { INSTANCE = it }
             }

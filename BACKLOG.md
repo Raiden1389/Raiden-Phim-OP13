@@ -2,9 +2,8 @@
 
 ## 🔥 Priority 1 — Quick Wins
 - [x] #1  Pull-to-Refresh trên Home
-- [x] #5  Greeting theo giờ (Chào buổi sáng/tối)
+- [x] #5  Greeting theo giờ (Chào buổi sáng/tối, xưng hô Sếp/Tông Chủ)
 - [x] #6  Movie card hiện năm + chất lượng
-- [x] #8  Active filter indicator trên Home
 - [x] #14 Expandable description (Detail)
 - [x] #30 Next/Prev episode buttons (Player)
 - [x] #33 Auto-play next toggle (Settings)
@@ -86,11 +85,11 @@
 - [ ] #54   Long press speed 2x — giữ màn hình để xem 2x, thả về bình thường
 - [ ] #P-1  **Subtitle Style** — (alias #52) font, size, màu chữ, màu nền, opacity via Settings
 - [ ] #P-2  **Subtitle Position** — (alias #53) slider điều chỉnh offset Y của subtitle
-- [ ] #PL-1 **Seekbar Preview Thumbnail** — Kéo seek bar → hiện thumbnail frame tại vị trí (giống YouTube). Tìm đúng cảnh muốn xem lại
+- [x] #PL-1 **Seekbar Time Tooltip** ✅ v1.20.8 (Opt C) — Kéo seekbar → tooltip đỏ hiện thời gian target phía trên slider. Không extract frame
 - [ ] #PL-2 **A-B Repeat Loop** — Đánh dấu 2 điểm → lặp lại đoạn đó. Cho cảnh hay / nghe nhạc phim
-- [ ] #PL-3 **Swipe Horizontal Seek** — Swipe ngang trên player = seek liên tục (giống MX Player). Chính xác hơn double-tap
-- [ ] #PL-4 **Remaining Time Toggle** — Tap vào thời lượng → toggle: `1:23:45` (total) ↔ `-0:37:12` (còn lại). Biết còn bao lâu
-- [ ] #PL-5 **Smooth Episode Transition** — Hết tập → crossfade 1.5s + hiện tên tập mới dạng cinematic ("Tập 13: Bí Mật"). Binge mượt
+- [x] #PL-3 **Swipe Horizontal Seek** ✅ v1.20.8 — Swipe ngang = seek liên tục (MX Player style). 1px≈200ms, billboard overlay, không conflict brightness/volume
+- [x] #PL-4 **Remaining Time Toggle** ✅ v1.20.8 — Tap time display toggle: `1:23:45` ↔ `-0:36:15` (còn lại)
+- [x] #PL-5 **Smooth Episode Transition** ✅ v1.20.7 — SuperStream: near-end prefetch (<3 phút/<15%), loading spinner khi fetch URL, disable auto-next (user tự click Next). Optimistic UI for Detail screen loading
 - [ ] #PL-6 **Smart Intro Detection (per-country)** — Track vị trí user skip đầu tập theo `countryCode`. Sau 3+ tập cùng quốc gia skip ±same timestamp → hỏi "Phim HQ hay intro ~55s, lưu country default?" → feed vào IntroOutroManager.promoteToCountryDefault(). Learn per 🇰🇷/🇨🇳/🇯🇵 riêng
 - [ ] #PL-7 **Smart Episode Notification** — Ưu tiên phim rate 🔥 + xem gần đây. Text thông minh: "Vincenzo có tập 13! Bạn xem đến tập 12 hôm qua 🍿". Không spam phim quên lâu
 
@@ -113,19 +112,19 @@
 
 ## 🏠 Personal UX (v1.20+)
 - [ ] #UX-1  **Smart Home theo ngữ cảnh** — Buổi tối: Continue Watching lên hero to nhất, 1 tap → xem ngay. Buổi sáng: hiện phim mới. Dựa vào giờ + lịch sử xem
-- [ ] #UX-2  **Episode Tracker Badge** — Trên mỗi poster phim bộ đang xem: vòng tròn progress + "12/48 tập". Nhìn biết ngay xem được bao nhiêu
+- [x] #UX-2  **Episode Tracker Badge** ✅ v1.20.8 — Progress bar đỏ + badge "X/Y" trên poster phim bộ đang xem. Reactive via Room Flow
 - [ ] #UX-3  **Quick Rating (Emoji)** — Xem xong phim/tập → popup nhẹ: 🔥👍😐💤. 1 tap rate. Data feed vào Taste Profile + thống kê
 
 ## 🎨 Visual Polish (v1.20+)
 - [ ] #VP-1  **Accent Color Picker** — Settings: chọn màu chủ đạo app (6 preset + custom HSL). Giữ dark theme, chỉ đổi accent color (nút, highlight, indicator)
-- [ ] #VP-2  **Animated Number Counter** — Detail screen: rating, năm, số tập chạy counter từ 0 (count-up animation). Nhỏ nhưng premium
-- [ ] #VP-3  **Category Colors** — Mỗi thể loại có gradient riêng (Hành động = đỏ cam, Kinh dị = tím đen, Tình cảm = hồng). Genre Hub + chips dùng màu tương ứng
+- [x] #VP-2  **Animated Number Counter** ✅ v1.20.6 — IMDb/TMDB rating + năm count-up từ 0, `FastOutSlowInEasing`, 0.9-1s
+- [x] #VP-3  **Category Colors** ✅ v1.20.6 — 20 thể loại gradient riêng. `GenreColors.kt`. GenreHub cards + reusable
 - [ ] #VP-4  **Living Wallpaper Home** — Background Home = poster phim đang xem, blur 60% làm nền. Mỗi ngày khác vì đang xem phim khác. App "sống", zero config
-- [ ] #VP-5  **Card Shape Variants** — Settings: chọn hình poster card: Bo tròn mềm (iOS) / Bo nhẹ (Android) / Vuông cứng (Cinematic) / Asymmetric (nghệ)
+- [x] #VP-5  **Card Shape Variants** ✅ v1.20.6 — 4 kiểu: Bo mềm/Bo nhẹ/Vuông/Nghệ. Picker trong Settings với mini preview. Realtime update
 
 ## ⚡ Micro-UX (v1.20+)
-- [x] #MU-1  **Swipe chuyển tab** ✅ v1.20.5 — HorizontalPager 5 tab, sync 2-chiều với NavController, beyondViewportPageCount=1 preload
-- [x] #MU-2  **Double-tap Poster Info** ✅ v1.20.5 — Dialog: poster 16:9 + gradient + badges, country, episodeCurrent + Xem/Fav/Watchlist actions
+- [x] #MU-1  **Swipe chuyển tab** ✅ v1.20.7 — Redesign: swipe gesture CHỈ trên bottom nav bar (threshold 48dp), tắt full-screen Pager swipe. Smooth tween(220ms) icon anim thay vì spring bouncy
+- [x] #MU-2  **Double-tap Poster Info** ✅ v1.20.7 — Gesture conflict fix: 1 `detectTapGestures` block duy nhất. Eliminating double-fire issue
 - [x] #MU-3  **Thống kê xem phim** ✅ v1.20.5 — Tab "Thống kê" trong History: tổng giờ, phim/hoàn thành/đang xem, breakdown by source, top 5 medals
 
 ## � Interaction (v1.20+)

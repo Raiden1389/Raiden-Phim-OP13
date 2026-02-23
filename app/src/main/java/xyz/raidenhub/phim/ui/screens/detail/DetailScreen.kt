@@ -3,6 +3,8 @@ package xyz.raidenhub.phim.ui.screens.detail
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PlayArrow
@@ -46,11 +51,48 @@ import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.ShimmerDetailScreen
+import xyz.raidenhub.phim.ui.screens.detail.PendingDetailState
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
 import xyz.raidenhub.phim.util.TextUtils
+
+// VP-2: Count-up animation cho số — premium feel
+@Composable
+private fun AnimatedIntCounter(
+    target: Int,
+    suffix: String = "",
+    prefix: String = "",
+    durationMs: Int = 900
+) {
+    // Bắt đầu từ 0, sau LaunchedEffect mới set target → count-up animation
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(target) { started = true }
+    val animatedValue by animateIntAsState(
+        targetValue = if (started) target else 0,
+        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+        label = "int_counter"
+    )
+    Text("$prefix$animatedValue$suffix", color = C.TextSecondary, fontSize = 13.sp)
+}
+
+@Composable
+private fun AnimatedFloatCounter(
+    target: Float,
+    suffix: String = "",
+    prefix: String = "",
+    durationMs: Int = 1000
+) {
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(target) { started = true }
+    val animatedValue by animateFloatAsState(
+        targetValue = if (started) target else 0f,
+        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+        label = "float_counter"
+    )
+    Text("$prefix${String.format("%.1f", animatedValue)}$suffix", color = C.TextSecondary, fontSize = 13.sp)
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,7 +111,10 @@ fun DetailScreen(
     val continueList by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
 
     when (val s = state) {
-        is DetailState.Loading -> ShimmerDetailScreen()
+        is DetailState.Loading -> ShimmerDetailScreen(
+            thumbUrl = PendingDetailState.thumbUrl,
+            title = PendingDetailState.title
+        )
         is DetailState.Error -> Box(Modifier.fillMaxSize().background(C.Background), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("😕 ${s.message}", color = C.TextPrimary)
@@ -78,6 +123,7 @@ fun DetailScreen(
             }
         }
         is DetailState.Success -> {
+            PendingDetailState.clear() // xóa preview data sau khi load xong
             // B-3: Entrance animation (card → full-screen feel)
             val enterAlpha = remember { Animatable(0f) }
             val enterScale = remember { Animatable(0.95f) }
@@ -154,7 +200,7 @@ fun DetailScreen(
                             val mediaType = firstResult.optString("media_type", "movie")
                             if (tmdbId > 0) {
                                 try {
-                                    val creditsUrl = "https://api.themoviedb.org/3/$mediaType/$tmdbId/credits"
+                                    val creditsUrl = "https://api.themoviedb.org/3/$mediaType/$tmdbId/credits?language=en-US"
                                     val creditsResp = client.newCall(Request.Builder().url(creditsUrl).header("Authorization", "Bearer $tmdbToken").build()).execute()
                                     val creditsJson = JSONObject(creditsResp.body?.string() ?: "")
                                     val castArray = creditsJson.optJSONArray("cast")
@@ -244,7 +290,12 @@ fun DetailScreen(
             ) {
                 // A-6: Parallax Backdrop with scroll-driven effects
                 item {
-                    Box(Modifier.fillMaxWidth().height(320.dp)) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .clip(androidx.compose.ui.graphics.RectangleShape)  // clip parallax overflow
+                    ) {
                         AsyncImage(
                             model = ImageUtils.detailImage(movie.posterUrl.ifBlank { movie.thumbUrl }),
                             contentDescription = movie.name,
@@ -252,13 +303,12 @@ fun DetailScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .graphicsLayer {
-                                    // Parallax: image scrolls at 0.5x speed
-                                    translationY = scrollOffset * 0.5f
-                                    // Slight scale up as scrolling for depth
+                                    // Parallax: image đi lên (negative) cùng chiều scroll nhưng chậm hơn
+                                    // Dương = xuống → lộ trắng trên. Âm = lên → luôn phủ từ trên
+                                    translationY = -scrollOffset * 0.3f
                                     val scale = 1f + (parallaxProgress * 0.1f)
                                     scaleX = scale
                                     scaleY = scale
-                                    // Fade out image as scrolling
                                     alpha = 1f - (parallaxProgress * 0.3f)
                                 }
                         )
@@ -349,7 +399,12 @@ fun DetailScreen(
                             onClick = { WatchlistManager.toggle(slug, movie.name, movie.thumbUrl) },
                             modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
                         ) {
-                            Text(if (isWatchlisted) "🔖" else "🔇", fontSize = 20.sp)
+                            Icon(
+                                if (isWatchlisted) Icons.Default.Bookmark else Icons.Default.Add,
+                                contentDescription = if (isWatchlisted) "Đã xem sau" else "Xem sau",
+                                tint = if (isWatchlisted) C.Primary else C.TextSecondary,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                         // C-5: Add to playlist
                         IconButton(
@@ -365,25 +420,56 @@ fun DetailScreen(
                 item {
                     Column(Modifier.padding(horizontal = 16.dp)) {
                         val infos = buildList {
-                            if (imdbRating != null) add("⭐ IMDb $imdbRating/10")
-                            if (tmdbRating != null) add("🍅 TMDB $tmdbRating/10")
-                            if (movie.year > 0) add("📅 ${movie.year}")
+                            // VP-2: IMDb/TMDB dùng AnimatedFloatCounter, năm dùng AnimatedIntCounter
+                            // (placeholder string cho flow compat)
+                            if (movie.year > 0) add("year:${movie.year}")
                             if (movie.country.isNotEmpty()) add("🌍 ${movie.country.joinToString { it.name }}")
                             if (movie.time.isNotBlank() && !movie.time.contains("?")) add("⏱ ${movie.time}")
                             if (movie.episodeTotal.isNotBlank() && !movie.episodeTotal.contains("?")) {
-                                // Tránh "? Tập tập" — episodeTotal đã có "Tập" thì không thêm nữa
                                 val epText = movie.episodeTotal
                                 val label = if (epText.contains("tập", ignoreCase = true)) epText else "$epText tập"
                                 add("📺 $label")
                             }
                         }
+                        // VP-2: Animated ratings row
+                        if (imdbRating != null || tmdbRating != null) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            ) {
+                                imdbRating?.toFloatOrNull()?.let { rating ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text("⭐ IMDb ", color = C.TextSecondary, fontSize = 13.sp)
+                                        AnimatedFloatCounter(rating, suffix = "/10")
+                                    }
+                                }
+                                tmdbRating?.toFloatOrNull()?.let { rating ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🍅 TMDB ", color = C.TextSecondary, fontSize = 13.sp)
+                                        AnimatedFloatCounter(rating, suffix = "/10")
+                                    }
+                                }
+                            }
+                        }
+                        // Static info row (nước, thời lượng, số tập)
                         if (infos.isNotEmpty()) {
                             FlowRow(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
                                 modifier = Modifier.padding(bottom = 12.dp)
                             ) {
-                                infos.forEach { Text(it, color = C.TextSecondary, fontSize = 13.sp) }
+                                infos.forEach { info ->
+                                    if (info.startsWith("year:")) {
+                                        // VP-2: Year count-up animation
+                                        val year = info.removePrefix("year:").toIntOrNull() ?: 0
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("📅 ", color = C.TextSecondary, fontSize = 13.sp)
+                                            AnimatedIntCounter(year)
+                                        }
+                                    } else {
+                                        Text(info, color = C.TextSecondary, fontSize = 13.sp)
+                                    }
+                                }
                             }
                         }
 
@@ -428,9 +514,12 @@ fun DetailScreen(
                             ) {
                                 items(actors.take(12).size) { idx ->
                                     val actor = actors[idx]
-                                    // Try exact match, then positional match
+                                    // TMDB key = tiếng Anh (Kim Seon-ho). VN API = chữ Hàn (김선호)
+                                    // Dùng TMDB name nếu có positional match, fallback VN name
+                                    val tmdbName = tmdbKeys.getOrNull(idx)
+                                    val displayName = tmdbName ?: actor
                                     val photoUrl = actorPhotos[actor]
-                                        ?: tmdbKeys.getOrNull(idx)?.let { actorPhotos[it] }
+                                        ?: tmdbName?.let { actorPhotos[it] }
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         modifier = Modifier.width(72.dp)
@@ -455,7 +544,7 @@ fun DetailScreen(
                                         }
                                         Spacer(Modifier.height(4.dp))
                                         Text(
-                                            actor.split(" ").lastOrNull() ?: actor,
+                                            displayName.split(" ").takeLast(2).joinToString(" "),
                                             color = C.TextSecondary,
                                             fontFamily = InterFamily,
                                             fontSize = 10.sp,

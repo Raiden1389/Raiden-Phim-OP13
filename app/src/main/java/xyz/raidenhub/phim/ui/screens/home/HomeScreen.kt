@@ -78,32 +78,32 @@ fun HomeScreen(
         }
         is HomeState.Success -> {
             val d = s.data
-            val settingsCountries by SettingsManager.selectedCountries.collectAsState()
             val settingsGenres by SettingsManager.selectedGenres.collectAsState()
-            val filterCount = settingsCountries.size + settingsGenres.size
             // H-6: section order state (collected in composable scope, usable in LazyListScope)
             val sectionOrder by SectionOrderManager.order.collectAsState(initial = emptyList())
+            // P6: Hoist hiddenSlugs ra ngoài LazyColumn — tránh re-subscribe mỗi recompose
+            val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState(initial = emptySet())
 
-            // Filter helpers using Settings
+            // Genre filter only — country filter cướng bức ở tầng API (Constants.ALLOWED_COUNTRIES)
             fun List<Movie>.applySettingsFilter(): List<Movie> {
-                var result = this
-                if (settingsCountries.isNotEmpty()) {
-                    result = result.filter { m -> m.country.any { it.slug in settingsCountries } }
-                }
-                if (settingsGenres.isNotEmpty()) {
-                    result = result.filter { m -> m.category.any { it.slug in settingsGenres } }
-                }
-                return result
+                if (settingsGenres.isEmpty()) return this
+                return filter { m -> m.category.any { it.slug in settingsGenres } }
             }
 
-            // Greeting based on time
+            // Greeting based on time — xưng hô Sếp/Tông Chủ xen kẽ theo phút lẻ/chẵn
             val greeting = remember {
-                val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                val cal = java.util.Calendar.getInstance()
+                val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+                val min  = cal.get(java.util.Calendar.MINUTE)
+                val title = if (min % 2 == 0) "Sếp" else "Tông Chủ"
                 when {
-                    hour < 6 -> "🌙 Khuya rồi, xem phim gì nhỉ?"
-                    hour < 12 -> "☀️ Chào buổi sáng!"
-                    hour < 18 -> "🌤️ Chào buổi chiều!"
-                    else -> "🌙 Chào buổi tối!"
+                    hour < 6  -> "🌙✨ Khuya rồi, $title ơi! Xem phim gì nhỉ?"
+                    hour < 9  -> "🌅🔥 Chào buổi sáng, $title! Ngày mới tươi sáng!"
+                    hour < 12 -> "☀️💪 Buổi sáng năng động, $title! Làm gì đây?"
+                    hour < 14 -> "🌤️🍜 Giờ nghỉ trưa rồi, $title! Xem phim thôi~"
+                    hour < 18 -> "🌤️⚡ Chào buổi chiều, $title! Hôm nay thế nào?"
+                    hour < 21 -> "🌙🎬 Tối rồi, $title! Chill phim nào?"
+                    else      -> "🌃🍿 Đêm khuya, $title! Đêm nay xem gì đây?"
                 }
             }
 
@@ -135,24 +135,19 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(greeting, color = C.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            if (filterCount > 0) {
-                                Text(
-                                    "🔵 $filterCount bộ lọc",
-                                    color = C.Primary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .background(C.Primary.copy(0.15f), RoundedCornerShape(12.dp))
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
+                            Text(
+                                greeting,
+                                color = C.TextPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
 
                     // Hero Carousel — H-1: filter out hidden slugs
                     item {
-                        val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState(initial = emptySet())
                         val heroMovies = remember(d.newMovies, hiddenSlugs) {
                             d.newMovies.filter { it.slug !in hiddenSlugs }.take(5)
                         }

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,8 +37,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.data.api.models.Movie
+import xyz.raidenhub.phim.data.local.CardShape
 import xyz.raidenhub.phim.data.local.FavoriteManager
+import xyz.raidenhub.phim.data.local.SettingsManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
+import xyz.raidenhub.phim.data.local.WatchHistoryManager
+import xyz.raidenhub.phim.ui.screens.detail.PendingDetailState
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
@@ -52,13 +58,22 @@ fun MovieCard(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val favorites by FavoriteManager.favorites.collectAsState(initial = emptyList())
+    // P1: Subscribe Flow<Boolean> riêng từng slug — tránh recompose toàn list khi 1 item thay đổi
     val isFav by remember(movie.slug) {
-        derivedStateOf { favorites.any { it.slug == movie.slug } }
-    }
-    val watchlist by WatchlistManager.items.collectAsState(initial = emptyList())
+        FavoriteManager.isFavoriteFlow(movie.slug)
+    }.collectAsState(initial = false)
     val isInWatchlist by remember(movie.slug) {
-        derivedStateOf { watchlist.any { it.slug == movie.slug } }
+        WatchlistManager.isInWatchlistFlow(movie.slug)
+    }.collectAsState(initial = false)
+
+    // UX-2: Episode tracker — reactive watched count
+    val watchedEpisodes by remember(movie.slug) {
+        WatchHistoryManager.getWatchedEpisodes(movie.slug)
+    }.collectAsState(initial = emptyList())
+    val watchedCount = watchedEpisodes.size
+    // Parse total episodes from episodeCurrent string (e.g. "Tập 48 / 48", "Hoàn Tất (48/48)")
+    val totalEp = remember(movie.episodeCurrent) {
+        Regex("(\\d+)").findAll(movie.episodeCurrent).lastOrNull()?.value?.toIntOrNull() ?: 0
     }
 
     // MU-2: Double-tap popup state
@@ -67,14 +82,25 @@ fun MovieCard(
     // IA-1: Long press context menu state
     var showContextMenu by remember { mutableStateOf(false) }
 
-    // ═══ Press scale animation — Netflix-style ═══
-    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    // ═══ Press scale animation — manual isPressed từ onPress ═══
+    var isPressed by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.96f else 1f,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
         label = "card_press"
     )
+
+    // VP-5: Card shape from settings
+    val cardShape by SettingsManager.cardShape.collectAsState()
+    val cardCornerShape = remember(cardShape) {
+        when (cardShape) {
+            CardShape.ASYMMETRIC -> RoundedCornerShape(
+                topStart = 0.dp, topEnd = 12.dp,
+                bottomStart = 12.dp, bottomEnd = 0.dp
+            )
+            else -> RoundedCornerShape(cardShape.cornerDp.dp)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -82,27 +108,31 @@ fun MovieCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick,
-                onLongClick = {
-                    // IA-1: Show context menu instead of default long-click
-                    showContextMenu = true
-                },
-                onDoubleClick = {
-                    // MU-2: Show info popup
-                    showInfoPopup = true
-                }
-            )
+            .clip(cardCornerShape)  // VP-5: dynamic shape
+            // MU-2 fix: 1 pointerInput duy nhất xử lý ALL gestures — tránh double-fire
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        tryAwaitRelease()
+                        isPressed = false
+                    },
+                    onTap = {
+                        // Optimistic UI: lưu preview data trước navigate → shimmer có ảnh ngay
+                        PendingDetailState.set(movie.thumbUrl, movie.name)
+                        onClick()
+                    },                    // single tap → navigate
+                    onDoubleTap = { showInfoPopup = true },   // double tap → popup
+                    onLongPress = { showContextMenu = true }  // long press → context menu
+                )
+            }
             .padding(4.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(cardCornerShape)  // VP-5: match outer Column shape
                 .background(C.Surface)
         ) {
             AsyncImage(
@@ -134,16 +164,11 @@ fun MovieCard(
                 )
             }
 
-            // Favorite heart indicator — pulse animation
+            // P5: Favorite heart indicator — one-shot scale (bỏ infinite pulse tốn CPU)
             if (isFav) {
-                val pulse = rememberInfiniteTransition(label = "fav_pulse")
-                val heartScale by pulse.animateFloat(
-                    initialValue = 1f,
-                    targetValue = 1.2f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(600, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
+                val heartScale by animateFloatAsState(
+                    targetValue = 1f,
+                    animationSpec = spring(dampingRatio = 0.4f, stiffness = 600f),
                     label = "heart_scale"
                 )
                 Icon(
@@ -169,6 +194,33 @@ fun MovieCard(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(6.dp)
+                )
+            }
+
+            // UX-2: Episode Tracker Badge — progress bar + "X/Y tập"
+            if (watchedCount > 0 && totalEp > 1) {
+                // Thin progress bar at bottom of poster
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                ) {
+                    Box(Modifier.fillMaxSize().background(Color.White.copy(0.18f)))
+                    Box(
+                        Modifier
+                            .fillMaxWidth((watchedCount.toFloat() / totalEp).coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .background(C.Primary)
+                    )
+                }
+                // "X/Y" badge at BottomEnd above progress bar
+                Badge(
+                    text = "$watchedCount/$totalEp",
+                    color = Color.Black.copy(alpha = 0.65f),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 5.dp, bottom = 7.dp)
                 )
             }
         }
