@@ -74,7 +74,8 @@ object FsharePlayerLoader {
 
         Log.d(TAG, "buildEpisodeList: isFolder=$isFolder, folderUrl=$folderUrl")
 
-        if (isFolder && folderUrl.isNotBlank()) {
+        // Only list folder if URL is actually on fshare.vn (not ThuVienCine etc.)
+        if (isFolder && folderUrl.isNotBlank() && "fshare.vn" in folderUrl) {
             try {
                 val files = fshareRepo.listFolder(folderUrl)
                     .filter { it.isVideo }

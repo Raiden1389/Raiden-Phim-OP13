@@ -144,9 +144,17 @@ private fun FshareDetailContent(
     // Build enriched slug for player
     val fshareUrl = viewModel.fshareUrl
     val enrichedSlug = remember(slug, movie.name, movie.posterUrl, movie.thumbUrl, fshareUrl) {
-        if (slug.contains("|||")) slug
-        else {
-            val poster = movie.posterUrl.ifEmpty { movie.thumbUrl }
+        val poster = movie.posterUrl.ifEmpty { movie.thumbUrl }
+        val existingParts = slug.split("|||")
+        val urlPart = existingParts[0]
+        val urlIsFshare = "fshare.vn" in urlPart
+
+        // If we have a real fshare.vn URL from ViewModel, always use it
+        if (fshareUrl != null && !urlIsFshare) {
+            "fshare-folder:$fshareUrl|||${movie.name}|||$poster"
+        } else if (slug.contains("|||")) {
+            slug  // Already enriched with fshare.vn URL
+        } else {
             val prefix = if (fshareUrl != null) "fshare-folder:$fshareUrl" else slug
             "$prefix|||${movie.name}|||$poster"
         }

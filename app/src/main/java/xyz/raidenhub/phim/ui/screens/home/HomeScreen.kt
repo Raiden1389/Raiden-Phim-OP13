@@ -421,6 +421,32 @@ fun HomeScreen(
                                                 ) {
                                                     Icon(Icons.Default.Close, "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
                                                 }
+                                                // Source badge
+                                                if (fav.source == "fshare") {
+                                                    Text(
+                                                        "F",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopStart)
+                                                            .padding(4.dp)
+                                                            .background(Color(0xFF4CAF50), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                } else if (fav.source == "superstream") {
+                                                    Text(
+                                                        "SS",
+                                                        color = Color.White,
+                                                        fontSize = 9.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier
+                                                            .align(Alignment.TopStart)
+                                                            .padding(4.dp)
+                                                            .background(Color(0xFF2196F3), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    )
+                                                }
                                             }
                                             Text(
                                                 fav.name,

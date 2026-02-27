@@ -210,7 +210,13 @@ fun AppNavigation() {
             composable(Screen.Home.route) {
                 MainTabsContent(
                     pagerState = pagerState,
-                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onMovieClick = { slug ->
+                        if (slug.startsWith("fshare-folder:") || slug.startsWith("fshare-file:")) {
+                            navController.navigate(Screen.FshareDetail.createRoute(slug))
+                        } else {
+                            navController.navigate(Screen.Detail.createRoute(slug))
+                        }
+                    },
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
