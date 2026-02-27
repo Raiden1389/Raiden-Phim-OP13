@@ -19,6 +19,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 
@@ -70,7 +71,18 @@ fun PlayerScreen(
             .setPrioritizeTimeOverSizeThresholds(true).build()
         val httpDsf = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(15_000).setReadTimeoutMs(20_000).setAllowCrossProtocolRedirects(true)
-        ExoPlayer.Builder(context).setLoadControl(loadControl).setTrackSelector(trackSelector)
+        val renderersFactory = NextRenderersFactory(context)
+            .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        // Debug: check FFmpeg native lib status
+        try {
+            System.loadLibrary("media3ext")
+            android.util.Log.d("FFMPEG_STATUS", "✅ media3ext native loaded OK")
+        } catch (e: UnsatisfiedLinkError) {
+            android.util.Log.e("FFMPEG_STATUS", "❌ media3ext native FAILED: ${e.message}")
+        } catch (e: Exception) {
+            android.util.Log.e("FFMPEG_STATUS", "❌ check error: ${e.message}")
+        }
+        ExoPlayer.Builder(context, renderersFactory).setLoadControl(loadControl).setTrackSelector(trackSelector)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDsf)))
             .setWakeMode(android.os.PowerManager.PARTIAL_WAKE_LOCK).setHandleAudioBecomingNoisy(true)
             .setAudioAttributes(
@@ -81,7 +93,7 @@ fun PlayerScreen(
             ).build().apply { playWhenReady = true }
     }
 
-    AudioFocusEffect(player, audioManager)
+    // Audio focus handled by ExoPlayer internally (setAudioAttributes handleAudioFocus=true)
 
     // ═══ TRACKS ═══
     @Suppress("DEPRECATION")
@@ -92,6 +104,20 @@ fun PlayerScreen(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                // ── DEBUG: Log all tracks to diagnose no-audio bug ──
+                for (group in tracks.groups) {
+                    for (i in 0 until group.length) {
+                        val fmt = group.getTrackFormat(i)
+                        val sel = if (group.isTrackSelected(i)) "✅SEL" else "⬜"
+                        val sup = if (group.isTrackSupported(i)) "✅SUP" else "❌UNSUP"
+                        android.util.Log.d("PLAYER_TRACKS",
+                            "$sel $sup | type=${group.type} mime=${fmt.sampleMimeType} " +
+                            "codec=${fmt.codecs} ch=${fmt.channelCount} rate=${fmt.sampleRate} " +
+                            "label=${fmt.label} lang=${fmt.language}"
+                        )
+                    }
+                }
+
                 val (audio, sub) = trackManager.scanTracks()
                 audioTracks = audio; subtitleTracks = sub
             }

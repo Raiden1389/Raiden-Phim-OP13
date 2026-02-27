@@ -4,6 +4,22 @@
 
 ---
 
+## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
+
+### Added
+- FFmpeg audio decoder — hỗ trợ AC3, EAC3, DTS, TrueHD qua software decode (MKV files có tiếng)
+
+### Changed
+- Subtitle dialog redesign — glassmorphism style giống Audio dialog
+- Tắt R8 minify — build nhanh hơn ~3-4x
+
+### Fixed
+- Episode name "Tập 5 . 1080 3,3 GB" → "Tập 5" (bỏ quality/size)
+- Episode button hiện "Tập Tập 5" → "Tập 5" (bỏ duplicate prefix)
+- Auto-play khi mở tập — bỏ conflict audio focus
+
+---
+
 ## v1.22.0 — 2026-02-27 (Fshare HD + Player Refactor)
 
 ### Changed

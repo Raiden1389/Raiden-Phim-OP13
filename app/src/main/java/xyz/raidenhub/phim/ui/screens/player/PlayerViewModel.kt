@@ -180,3 +180,30 @@ fun formatTime(ms: Long): String {
     return if (h > 0) "%d:%02d:%02d".format(h, m, s)
     else "%d:%02d".format(m, s)
 }
+
+/**
+ * Strip quality/size suffixes from Fshare episode names.
+ * "Tập 5 . 1080 3,3 GB" → "Tập 5"
+ * "E05.mkv" → "E05"
+ * Also trims common file extensions.
+ */
+fun cleanEpName(raw: String): String {
+    return raw
+        .replace(Regex("""\.mkv$|\.mp4$|\.avi$""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*[.\s]+\s*\d{3,4}p?\s*[\d.,]+\s*(GB|MB|KB|TB).*""", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("""\s*\.\s*\d{3,4}\s+[\d.,]+\s*(GB|MB).*""", RegexOption.IGNORE_CASE), "")
+        .trim()
+}
+
+/**
+ * Smart episode label — avoids double "Tập" prefix.
+ * If name already starts with "Tập" or a number, just use it.
+ * Otherwise prepend "Tập ".
+ */
+fun smartEpLabel(name: String, fallbackIdx: Int): String {
+    val clean = cleanEpName(name.ifBlank { "${fallbackIdx + 1}" })
+    return if (clean.startsWith("Tập", ignoreCase = true) ||
+        clean.startsWith("Episode", ignoreCase = true) ||
+        clean.first().isDigit()
+    ) clean else "Tập $clean"
+}

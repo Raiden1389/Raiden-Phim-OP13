@@ -1,28 +1,29 @@
 package xyz.raidenhub.phim.ui.screens.player
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.MediaItem
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import kotlinx.coroutines.launch
-import xyz.raidenhub.phim.data.repository.SubtitleRepository
-import xyz.raidenhub.phim.ui.theme.C
+import xyz.raidenhub.phim.ui.theme.InterFamily
 import androidx.media3.common.C as MediaC
 
 /**
- * Subtitle selection dialog — embedded tracks + online search.
- * Extracted from PlayerScreen.
+ * Subtitle selection dialog — glassmorphism style matching TrackSelectionDialog.
+ * Sections: embedded tracks + online search (delegated to PlayerOnlineSubtitles).
  */
 @OptIn(UnstableApi::class)
 @Composable
@@ -36,72 +37,83 @@ fun PlayerSubtitleDialog(
     onDismiss: () -> Unit,
     context: android.content.Context
 ) {
-    var subtitleResults by remember { mutableStateOf<List<xyz.raidenhub.phim.data.api.models.SubtitleResult>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
-
-    // Search subtitles on dialog open
-    LaunchedEffect(Unit) {
-        val searchTitle = title.ifBlank { "Unknown" }
-        try {
-            subtitleResults = SubtitleRepository.searchSubtitles(
-                filmName = searchTitle,
-                type = streamType.ifBlank { null },
-                season = streamSeason.takeIf { it > 0 },
-                episode = streamEpisode.takeIf { it > 0 },
-                languages = if (source == "superstream") "en" else "vi,en"
-            )
-        } catch (_: Exception) {}
-        isSearching = false
-    }
+    val accentColor = Color(0xFFE50914)
 
     // Embedded HLS text tracks
     val textTracks = remember(player.currentTracks) {
-        val tracks = mutableListOf<Triple<Int, Int, String>>()
+        val tracks = mutableListOf<Triple<Int, Int, Pair<String, Boolean>>>()
         for (group in player.currentTracks.groups) {
             if (group.type == MediaC.TRACK_TYPE_TEXT) {
                 for (i in 0 until group.length) {
                     val fmt = group.getTrackFormat(i)
                     val label = fmt.label ?: fmt.language?.uppercase() ?: "Sub $i"
                     val sel = group.isTrackSelected(i)
-                    tracks.add(Triple(player.currentTracks.groups.indexOf(group), i,
-                        if (sel) "✅ $label" else label))
+                    tracks.add(Triple(
+                        player.currentTracks.groups.indexOf(group), i,
+                        Pair(label, sel)
+                    ))
                 }
             }
         }
         tracks
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Đóng", color = C.Primary)
-            }
-        },
-        title = { Text("🔤 Phụ đề", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(modifier = Modifier.heightIn(max = 400.dp)) {
-                // Off button
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color.White.copy(0.08f),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
-                        player.trackSelectionParameters = player.trackSelectionParameters
-                            .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, true).build()
-                        onDismiss()
-                    }
-                ) { Text("❌ Tắt phụ đề", Modifier.padding(10.dp), fontSize = 13.sp) }
+    // ═══ Glassmorphism overlay ═══
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.75f))
+            .clickable(indication = null, interactionSource = null) { onDismiss() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(min = 300.dp, max = 420.dp)
+                .heightIn(max = 520.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1A1A2E))
+                .clickable(enabled = false) {}
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "🔤 Phụ đề",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
 
-                // Embedded tracks
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                // ── Off button ──
+                item {
+                    SubtitleRow(
+                        label = "Tắt phụ đề",
+                        isSelected = textTracks.none { it.third.second },
+                        accentColor = accentColor,
+                        onClick = {
+                            player.trackSelectionParameters = player.trackSelectionParameters
+                                .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, true).build()
+                            onDismiss()
+                        }
+                    )
+                }
+
+                // ── Embedded tracks ──
                 if (textTracks.isNotEmpty()) {
-                    Text("📺 Trong video", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                        color = Color.Gray, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
-                    textTracks.forEach { (gIdx, tIdx, lbl) ->
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (lbl.startsWith("✅")) C.Primary.copy(0.2f) else Color.White.copy(0.08f),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
+                    item {
+                        SectionHeader("📺 Trong video")
+                    }
+                    items(textTracks.size) { idx ->
+                        val (gIdx, tIdx, pair) = textTracks[idx]
+                        val (label, selected) = pair
+                        SubtitleRow(
+                            label = label,
+                            isSelected = selected,
+                            accentColor = accentColor,
+                            onClick = {
                                 val grp = player.currentTracks.groups[gIdx]
                                 player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                                     .setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, false)
@@ -109,83 +121,64 @@ fun PlayerSubtitleDialog(
                                     .build()
                                 onDismiss()
                             }
-                        ) { Text(lbl, Modifier.padding(10.dp), fontSize = 13.sp) }
+                        )
                     }
                 }
 
-                // Online search
-                Text("🌐 Online", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                    color = Color.Gray, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
-
-                if (isSearching) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = C.Primary)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Đang tìm...", fontSize = 13.sp, color = Color.Gray)
-                    }
-                } else if (subtitleResults.isEmpty()) {
-                    Text("Không tìm thấy phụ đề.", color = Color.Gray, fontSize = 13.sp)
-                } else {
-                    androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 260.dp)) {
-                        items(subtitleResults.size.coerceAtMost(30)) { idx ->
-                            val sub = subtitleResults[idx]
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = Color.White.copy(0.08f),
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).clickable {
-                                    scope.launch {
-                                        try {
-                                            val subUrl = if (sub.url.endsWith(".zip")) {
-                                                val sdl = xyz.raidenhub.phim.data.api.models.SubDLSubtitle(
-                                                    releaseName = sub.fileName, url = sub.url.removePrefix("https://dl.subdl.com"),
-                                                    lang = sub.language, language = sub.languageLabel
-                                                )
-                                                xyz.raidenhub.phim.util.SubtitleDownloader
-                                                    .downloadSubDL(context, sdl)?.url ?: sub.url
-                                            } else sub.url
-
-                                            val subUri = android.net.Uri.parse(subUrl)
-                                            val mime = xyz.raidenhub.phim.util.SubtitleConverter.getMimeType(subUrl)
-                                            val subCfg = MediaItem.SubtitleConfiguration.Builder(subUri)
-                                                .setMimeType(mime)
-                                                .setLanguage(sub.language)
-                                                .setLabel(sub.languageLabel)
-                                                .setSelectionFlags(MediaC.SELECTION_FLAG_DEFAULT)
-                                                .build()
-                                            val pos = player.currentPosition
-                                            val wasPlaying = player.playWhenReady
-                                            val cur = player.currentMediaItem
-                                            if (cur != null) {
-                                                player.setMediaItem(cur.buildUpon()
-                                                    .setSubtitleConfigurations(listOf(subCfg)).build(), pos)
-                                                player.playWhenReady = wasPlaying
-                                                player.prepare()
-                                                player.trackSelectionParameters = player.trackSelectionParameters
-                                                    .buildUpon().setTrackTypeDisabled(MediaC.TRACK_TYPE_TEXT, false).build()
-                                            }
-                                        } catch (_: Exception) {}
-                                        onDismiss()
-                                    }
-                                }
-                            ) {
-                                Column(Modifier.padding(10.dp)) {
-                                    val epInfo = Regex("""[Ss](\d+)[Ee](\d+)""").find(sub.fileName)
-                                        ?.let { " • S${it.groupValues[1]}E${it.groupValues[2]}" } ?: ""
-                                    Text("${sub.flag} ${sub.languageLabel}$epInfo",
-                                        fontSize = 13.sp, maxLines = 1, color = Color.White.copy(0.95f),
-                                        fontWeight = FontWeight.Medium)
-                                    val releaseName = sub.fileName.take(35).let { if (sub.fileName.length > 35) "$it…" else it }
-                                    Text("${sub.source}${if (releaseName.isNotBlank()) " • $releaseName" else ""}${if (sub.downloadCount > 0) " • ${sub.downloadCount}↓" else ""}",
-                                        fontSize = 10.sp, color = Color.Gray, maxLines = 1)
-                                }
-                            }
-                        }
-                    }
-                }
+                // ── Online search (delegated) ──
+                item { SectionHeader("🌐 Online") }
+                onlineSubtitleItems(
+                    this@LazyColumn, player, title, source, streamType,
+                    streamSeason, streamEpisode, accentColor, context, onDismiss
+                )
             }
         }
+    }
+}
+
+// ═══ Shared UI components ═══
+
+@Composable
+internal fun SubtitleRow(
+    label: String,
+    isSelected: Boolean,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) Color.White.copy(alpha = 0.12f) else Color.Transparent,
+        label = "sub_bg"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = if (isSelected) "●" else "○",
+            fontSize = 14.sp,
+            color = if (isSelected) accentColor else Color.White.copy(alpha = 0.4f)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.85f),
+            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+internal fun SectionHeader(text: String) {
+    Text(
+        text, fontWeight = FontWeight.SemiBold, fontSize = 11.sp,
+        color = Color.White.copy(0.45f), fontFamily = InterFamily,
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
     )
 }

@@ -46,7 +46,9 @@ fun PlayerTopBar(
         IconButton(onClick = onBack) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
         }
-        val displayTitle = if (epName.isNotBlank()) "$title — Tập $epName" else title
+        val displayTitle = if (epName.isNotBlank()) {
+            "$title — ${smartEpLabel(epName, 0)}"
+        } else title
         Text(
             displayTitle, color = Color.White, fontFamily = JakartaFamily,
             fontSize = 15.sp, fontWeight = FontWeight.SemiBold,

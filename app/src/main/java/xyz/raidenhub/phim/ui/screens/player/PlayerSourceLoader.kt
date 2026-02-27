@@ -109,6 +109,7 @@ fun PlayMediaEffect(
             val ep = episodes.getOrNull(currentEp) ?: return@LaunchedEffect
             val url = ep.linkM3u8
             if (url.isNotBlank() && url != lastLoadedUrl) {
+                android.util.Log.d("PLAY_MEDIA", "Loading ep=$currentEp url=${url.take(80)}")
                 player.setMediaItem(MediaItem.fromUri(url))
                 player.prepare()
                 if (!hasSeekOnce && startPositionMs > 0L && currentEp == startEpisode) {

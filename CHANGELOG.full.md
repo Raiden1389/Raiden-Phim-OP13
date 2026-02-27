@@ -1,5 +1,39 @@
 # Raiden Phim — Changelog
 
+## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
+
+**Top Impact**: FFmpeg audio decoder cho MKV/EAC3 • Episode name cleanup • Subtitle dialog redesign
+
+### 🔊 Added — FFmpeg Audio Decoder
+- **[Player]** `nextlib-media3ext` integration — software decode AC3, EAC3, DTS, TrueHD, FLAC, Vorbis, Opus
+- **[Player]** `NextRenderersFactory` thay `DefaultRenderersFactory` + `EXTENSION_RENDERER_MODE_PREFER`
+- **[Build]** Media3 1.9.2 → 1.9.1 (match nextlib dependency)
+- **[Build]** Native libs: `libavcodec.so`, `libmedia3ext.so`, `libswresample.so`, `libswscale.so` (arm64/armeabi/x86/x86_64)
+
+### 🎨 Changed — Subtitle Dialog Redesign
+- **[Player]** `PlayerSubtitleDialog` — AlertDialog → glassmorphism overlay (match Audio `TrackSelectionDialog` style)
+- **[Player]** Tách `PlayerOnlineSubtitles.kt` — online search logic riêng biệt
+- **[Player]** Shared components: `SubtitleRow`, `SectionHeader` (internal)
+
+### 🐛 Fixed
+- **[Player]** Episode name hiện "Tập 5 . 1080 3,3 GB" → "Tập 5" (strip quality/size suffix)
+- **[Player]** Episode list trigger hiện "Tập Tập 5" → "Tập 5" (fix double prefix)
+- **[Player]** Auto-play fix — bỏ duplicate `AudioFocusEffect` (ExoPlayer handles via `setAudioAttributes` internally)
+- **[Build]** Tắt R8 minify + shrink resources → build nhanh hơn ~3-4x
+
+### 📦 Files Modified
+- `app/build.gradle.kts` — version 1.22.1, build 66, nextlib dep, Media3 downgrade, R8 off
+- `PlayerScreen.kt` — NextRenderersFactory + EXTENSION_RENDERER_MODE_PREFER + FFmpeg diagnostic log
+- `PlayerViewModel.kt` — `cleanEpName()` + `smartEpLabel()` utilities
+- `PlayerTopBar.kt` — smartEpLabel for title display
+- `PlayerBottomActions.kt` — smartEpLabel for episode button
+- `PlayerEpisodeSheet.kt` — cleanEpName for grid items
+- `PlayerSessionEffects.kt` — cleanEpName for saved progress, removed AudioFocusEffect
+- `PlayerSourceLoader.kt` — debug log for media loading
+- `PlayerSubtitleDialog.kt` — rewritten glassmorphism style + split
+- `PlayerOnlineSubtitles.kt` — **NEW** online subtitle search
+
+
 ## v1.22.0 — 2026-02-27 (Fshare HD + Player Refactor)
 
 ### ✨ Fshare HD — Full Integration

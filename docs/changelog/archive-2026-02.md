@@ -2,6 +2,48 @@
 
 ---
 
+## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
+
+**Session**: FFmpeg Audio Decoder + Player Polish
+**Objective**: Fix silent MKV playback (EAC3 unsupported), clean episode names, redesign subtitle dialog
+
+### Added
+- FFmpeg audio decoder via `nextlib-media3ext:1.9.1-0.11.0` — AC3, EAC3, DTS, TrueHD software decode
+- `NextRenderersFactory` + `EXTENSION_RENDERER_MODE_PREFER`
+- `cleanEpName()` + `smartEpLabel()` utility functions
+
+### Changed
+- Media3 1.9.2 → 1.9.1 (match nextlib)
+- Subtitle dialog → glassmorphism overlay (match Audio TrackSelectionDialog)
+- Split PlayerSubtitleDialog → PlayerSubtitleDialog + PlayerOnlineSubtitles
+- Disabled R8 minify + shrink resources (faster builds)
+
+### Fixed
+- Episode name "Tập 5 . 1080 3,3 GB" → "Tập 5"
+- Double "Tập Tập 5" → "Tập 5"
+- Auto-play — removed duplicate AudioFocusEffect (ExoPlayer handles internally)
+
+### Technical Notes
+- Native lib is `libmedia3ext.so` not `libnextlib.so`
+- AAR bundles: libavcodec, libavutil, libmedia3ext, libswresample, libswscale
+- `setAudioAttributes(attrs, handleAudioFocus=true)` makes ExoPlayer manage focus — never duplicate
+
+### Files
+| File | Change |
+|---|---|
+| build.gradle.kts | v1.22.1, nextlib dep, Media3 1.9.1, R8 off |
+| PlayerScreen.kt | NextRenderersFactory + diagnostic |
+| PlayerViewModel.kt | cleanEpName + smartEpLabel |
+| PlayerTopBar.kt | smartEpLabel |
+| PlayerBottomActions.kt | smartEpLabel |
+| PlayerEpisodeSheet.kt | cleanEpName |
+| PlayerSessionEffects.kt | cleanEpName, removed AudioFocusEffect |
+| PlayerSourceLoader.kt | debug log |
+| PlayerSubtitleDialog.kt | rewritten glassmorphism |
+| PlayerOnlineSubtitles.kt | NEW — online search |
+
+---
+
 ## v1.22.0 — 2026-02-27 (Fshare HD + Player Refactor)
 
 **Session**: Fshare HD Integration + Player Refactor

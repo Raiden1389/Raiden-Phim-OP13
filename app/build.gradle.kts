@@ -21,8 +21,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 65
-        versionName = "1.22.0"
+        versionCode = 66
+        versionName = "1.22.1"
 
         // ═══ API Keys từ local.properties (không hardcode trong source) ═══
         buildConfigField("String", "TMDB_API_KEY", "\"${localProp("tmdb.api.key")}\"")
@@ -50,8 +50,8 @@ android {
             applicationIdSuffix = ".debug"  // Cài song song với bản release, không đè
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -133,12 +133,15 @@ dependencies {
     // ═══ Navigation ═══
     implementation("androidx.navigation:navigation-compose:2.9.7")
 
-    // ═══ ExoPlayer (Media3) ═══
-    implementation("androidx.media3:media3-exoplayer:1.9.2")
-    implementation("androidx.media3:media3-exoplayer-hls:1.9.2")
-    implementation("androidx.media3:media3-datasource:1.9.2")
-    implementation("androidx.media3:media3-datasource-okhttp:1.9.2")
-    implementation("androidx.media3:media3-ui:1.9.2")
+    // ═══ ExoPlayer (Media3 1.9.1 — matches nextlib-media3ext) ═══
+    implementation("androidx.media3:media3-exoplayer:1.9.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.9.1")
+    implementation("androidx.media3:media3-datasource:1.9.1")
+    implementation("androidx.media3:media3-datasource-okhttp:1.9.1")
+    implementation("androidx.media3:media3-ui:1.9.1")
+
+    // ═══ FFmpeg decoder extension — AC3/EAC3/DTS software decode for MKV ═══
+    implementation("io.github.anilbeesetti:nextlib-media3ext:1.9.1-0.11.0")
 
     // ═══ Coil 3 — Image loading ═══
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")

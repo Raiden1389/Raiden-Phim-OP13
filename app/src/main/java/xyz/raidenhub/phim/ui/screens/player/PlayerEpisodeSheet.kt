@@ -67,7 +67,7 @@ fun PlayerEpisodeSheet(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
-                                    episodes[idx].name,
+                                    cleanEpName(episodes[idx].name),
                                     color = if (isCurrentEp) Color.White else Color.White.copy(0.8f),
                                     fontFamily = InterFamily, fontSize = 13.sp,
                                     fontWeight = if (isCurrentEp) FontWeight.Bold else FontWeight.Normal,

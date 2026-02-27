@@ -105,7 +105,7 @@ fun PlayerBottomActions(
                     Icon(Icons.AutoMirrored.Filled.ViewList, "Episodes", tint = Color.White, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Tập ${(episodes.getOrNull(currentEp)?.name ?: "${currentEp + 1}")}",
+                        smartEpLabel(episodes.getOrNull(currentEp)?.name ?: "", currentEp),
                         color = Color.White, fontFamily = InterFamily,
                         fontSize = 12.sp, fontWeight = FontWeight.Medium
                     )

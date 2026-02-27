@@ -96,7 +96,7 @@ fun SaveProgressEffect(
             val dur = player.duration
             if (dur > 0 && pos > 0) {
                 val saveEpIdx = if (source == "superstream") (streamEpisode - 1).coerceAtLeast(0) + currentEp else currentEp
-                val epName = episodes.getOrNull(currentEp)?.name ?: "Tập ${saveEpIdx + 1}"
+                val epName = cleanEpName(episodes.getOrNull(currentEp)?.name ?: "Tập ${saveEpIdx + 1}")
                 WatchHistoryManager.updateContinue(
                     slug = effectiveSlug, name = title, thumbUrl = "", source = source,
                     episodeIdx = saveEpIdx, episodeName = epName,
