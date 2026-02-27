@@ -56,6 +56,9 @@ import xyz.raidenhub.phim.ui.screens.superstream.SuperStreamDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistDetailScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.PlaylistListScreen
 import xyz.raidenhub.phim.ui.screens.watchlist.WatchlistScreen
+import xyz.raidenhub.phim.ui.screens.community.CommunityScreen
+import xyz.raidenhub.phim.ui.screens.fshare.FshareDetailScreen
+import xyz.raidenhub.phim.ui.screens.fshare.FshareCategoryScreen
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.InterFamily
 
@@ -91,13 +94,18 @@ fun AppNavigation() {
     val context = LocalContext.current
 
     // Helper: launch PlayerActivity
-    fun startPlayerActivity(slug: String, server: Int, episode: Int, positionMs: Long = 0L, source: String = "kkphim") {
+    fun startPlayerActivity(
+        slug: String, server: Int, episode: Int,
+        positionMs: Long = 0L, source: String = "kkphim",
+        fshareEpSlug: String = ""
+    ) {
         context.startActivity(Intent(context, PlayerActivity::class.java).apply {
             putExtra("slug", slug)
             putExtra("server", server)
             putExtra("episode", episode)
             putExtra("positionMs", positionMs)
             putExtra("source", source)
+            if (fshareEpSlug.isNotBlank()) putExtra("fshare_ep_slug", fshareEpSlug)
         })
     }
 
@@ -206,6 +214,8 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
+                    onFshareSeeMore = { url, title -> navController.navigate(Screen.FshareCategory.createRoute(url, title)) },
                     onBack = { navController.popBackStack() },
                     onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
                     onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
@@ -218,6 +228,22 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
+                    onFshareSeeMore = { url, title -> navController.navigate(Screen.FshareCategory.createRoute(url, title)) },
+                    onBack = { navController.popBackStack() },
+                    onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
+                    onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
+                )
+            }
+            composable(Screen.Community.route) {
+                MainTabsContent(
+                    pagerState = pagerState,
+                    onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
+                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
+                    onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
+                    onFshareSeeMore = { url, title -> navController.navigate(Screen.FshareCategory.createRoute(url, title)) },
                     onBack = { navController.popBackStack() },
                     onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
                     onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
@@ -230,13 +256,15 @@ fun AppNavigation() {
                     onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
+                    onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
+                    onFshareSeeMore = { url, title -> navController.navigate(Screen.FshareCategory.createRoute(url, title)) },
                     onBack = { navController.popBackStack() },
                     onWatchlistClick = { navController.navigate(Screen.Watchlist.route) },
                     onPlaylistClick = { navController.navigate(Screen.PlaylistList.route) }
                 )
             }
 
-            // WatchHistory + Settings routes (tab 3 & 4 also served via pager when accessed directly)
+            // WatchHistory + Settings routes (tab 4 & 5 also served via pager when accessed directly)
             composable(Screen.WatchHistory.route) {
                 MainTabsContent(
                     pagerState = pagerState,
@@ -352,6 +380,73 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() }
                 )
             }
+
+            // ═══ Fshare HD — Detail ═══
+
+            composable(
+                Screen.FshareDetail.route,
+                arguments = listOf(navArgument("detailUrl") { type = NavType.StringType }),
+                enterTransition = { detailEnterAnim },
+                exitTransition = { detailExitAnim },
+                popEnterTransition = { popEnterAnim },
+                popExitTransition = { detailPopExitAnim }
+            ) { entry ->
+                val rawUrl = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("detailUrl") ?: "", "UTF-8"
+                )
+                // Parse enriched format: "fshare-folder:URL|||NAME|||THUMB"
+                val parts = rawUrl.split("|||")
+                val urlPart = parts[0]
+                val name = parts.getOrNull(1) ?: "Fshare"
+                val thumb = parts.getOrNull(2) ?: ""
+                val cleanUrl = urlPart.removePrefix("fshare-folder:").removePrefix("fshare-file:")
+                val isFshareDirect = (urlPart.startsWith("fshare-folder:") || urlPart.startsWith("fshare-file:")) && "fshare.vn" in cleanUrl
+
+                FshareDetailScreen(
+                    detailUrl = cleanUrl,
+                    slug = rawUrl,
+                    isFshareDirect = isFshareDirect,
+                    fshareName = name,
+                    fshareThumb = thumb,
+                    onEpisodeClick = { enrichedSlug, epSlug, _ ->
+                        startPlayerActivity(
+                            slug = enrichedSlug,
+                            server = 0,
+                            episode = 0,
+                            source = "fshare",
+                            fshareEpSlug = epSlug
+                        )
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            composable(
+                Screen.FshareCategory.route,
+                arguments = listOf(
+                    navArgument("categoryUrl") { type = NavType.StringType },
+                    navArgument("title") { type = NavType.StringType }
+                ),
+                enterTransition = { detailEnterAnim },
+                exitTransition = { detailExitAnim },
+                popEnterTransition = { popEnterAnim },
+                popExitTransition = { detailPopExitAnim }
+            ) { entry ->
+                val catUrl = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("categoryUrl") ?: "", "UTF-8"
+                )
+                val catTitle = java.net.URLDecoder.decode(
+                    entry.arguments?.getString("title") ?: "Fshare", "UTF-8"
+                )
+                FshareCategoryScreen(
+                    categoryUrl = catUrl,
+                    title = catTitle,
+                    onMovieClick = { fshareSlug ->
+                        navController.navigate(Screen.FshareDetail.createRoute(fshareSlug))
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
@@ -367,7 +462,8 @@ private data class NavItem(
 
 private val navItems = listOf(
     NavItem(Screen.Home.route, "Phim", Icons.Default.Home),
-    NavItem(Screen.SuperStream.route, "English", emoji = "🌍"),
+    NavItem(Screen.SuperStream.route, "English", emoji = "\uD83C\uDF0D"),
+    NavItem(Screen.Community.route, "Cộng đồng", emoji = "\uD83D\uDC65"),
     NavItem(Screen.Search.route, "Tìm", Icons.Default.Search),
     NavItem(Screen.WatchHistory.route, "Lịch sử", Icons.Default.History),
     NavItem(Screen.Settings.route, "Cài đặt", Icons.Default.Settings),
@@ -384,10 +480,13 @@ private fun MainTabsContent(
     onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit,
     onCategoryClick: (String, String) -> Unit,
     onSuperStreamItemClick: (tmdbId: Int, type: String) -> Unit,
+    onFshareClick: (String) -> Unit = {},
+    onFshareSeeMore: (url: String, title: String) -> Unit = { _, _ -> },
     onBack: () -> Unit,
     onWatchlistClick: () -> Unit = {},
     onPlaylistClick: () -> Unit = {}
 ) {
+    val tabScope = rememberCoroutineScope()
     // MU-1: userScrollEnabled=false — swipe chuyển tab chỉ ở bottom nav bar (không phải full-screen)
     HorizontalPager(
         state = pagerState,
@@ -399,21 +498,27 @@ private fun MainTabsContent(
             0 -> HomeScreen(
                 onMovieClick = onMovieClick,
                 onContinue = onContinue,
-                onCategoryClick = onCategoryClick
+                onCategoryClick = onCategoryClick,
+                onFshareClick = onFshareClick,
+                onFshareSeeMore = onFshareSeeMore
             )
             1 -> SuperStreamScreen(
                 onItemClick = onSuperStreamItemClick,
                 onBack = onBack
             )
-            2 -> SearchScreen(onMovieClick = onMovieClick)
-            3 -> WatchHistoryScreen(
+            2 -> CommunityScreen(
+                onMovieClick = onFshareClick,
+                onBack = onBack
+            )
+            3 -> SearchScreen(onMovieClick = onMovieClick)
+            4 -> WatchHistoryScreen(
                 onBack = onBack,
                 onMovieClick = onMovieClick,
                 onContinue = { slug, server, ep, source -> onContinue(slug, server, ep, 0L, source) },
                 onWatchlistClick = onWatchlistClick,
                 onPlaylistClick = onPlaylistClick
             )
-            4 -> SettingsScreen()
+            5 -> SettingsScreen()
             else -> HomeScreen(
                 onMovieClick = onMovieClick,
                 onContinue = onContinue,

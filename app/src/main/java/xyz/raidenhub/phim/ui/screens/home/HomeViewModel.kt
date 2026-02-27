@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import xyz.raidenhub.phim.data.api.models.CineMovie
 import xyz.raidenhub.phim.data.repository.MovieRepository
+import xyz.raidenhub.phim.data.repository.ThuVienCineRepository
 import xyz.raidenhub.phim.util.AppError
 import xyz.raidenhub.phim.util.toAppError
 
@@ -16,6 +18,7 @@ class HomeViewModel : ViewModel() {
     init { load() }
 
     fun load() {
+        loadFshare()  // Fshare loads independently, non-blocking
         viewModelScope.launch {
             // Cache hit → Success ngay, không qua Loading → zero shimmer khi swipe tab
             MovieRepository.getCachedHomeData()?.let {
@@ -32,6 +35,34 @@ class HomeViewModel : ViewModel() {
                         isRetryable = err.isRetryable
                     )
                 }
+        }
+    }
+    // ═══ Fshare HD rows (ThuVienCine) ═══
+    private val _fshareMovies = MutableStateFlow<List<CineMovie>>(emptyList())
+    val fshareMovies = _fshareMovies.asStateFlow()
+    private val _fshareSeries = MutableStateFlow<List<CineMovie>>(emptyList())
+    val fshareSeries = _fshareSeries.asStateFlow()
+
+    private fun loadFshare() {
+        viewModelScope.launch {
+            try {
+                val repo = ThuVienCineRepository()
+                val movies = repo.getMovies("https://thuviencine.com/movies/")
+                android.util.Log.d("HomeVM", "Fshare movies loaded: ${movies.size}")
+                _fshareMovies.value = movies.take(12)
+            } catch (e: Exception) {
+                android.util.Log.e("HomeVM", "Fshare movies failed", e)
+            }
+        }
+        viewModelScope.launch {
+            try {
+                val repo = ThuVienCineRepository()
+                val series = repo.getMovies("https://thuviencine.com/tv-series/")
+                android.util.Log.d("HomeVM", "Fshare series loaded: ${series.size}")
+                _fshareSeries.value = series.take(12)
+            } catch (e: Exception) {
+                android.util.Log.e("HomeVM", "Fshare series failed", e)
+            }
         }
     }
 }

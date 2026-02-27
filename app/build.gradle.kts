@@ -21,12 +21,18 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 63
-        versionName = "1.20.8"
+        versionCode = 64
+        versionName = "1.21.0"
 
         // ═══ API Keys từ local.properties (không hardcode trong source) ═══
         buildConfigField("String", "TMDB_API_KEY", "\"${localProp("tmdb.api.key")}\"")
         buildConfigField("String", "FEBBOX_COOKIE", "\"${localProp("febbox.cookie")}\"")
+
+        // ═══ Fshare credentials ═══
+        buildConfigField("String", "FSHARE_EMAIL", "\"${localProp("fshare.email")}\"")
+        buildConfigField("String", "FSHARE_PASSWORD", "\"${localProp("fshare.password")}\"")
+        buildConfigField("String", "FSHARE_APP_KEY", "\"${localProp("fshare.app.key")}\"")
+        buildConfigField("String", "FSHARE_USER_AGENT", "\"${localProp("fshare.user.agent")}\"")
     }
 
 
@@ -166,6 +172,10 @@ dependencies {
     // ═══ Glance (N-3 — Continue Watching widget) ═══
     implementation("androidx.glance:glance-appwidget:1.1.1")
     implementation("androidx.glance:glance-material3:1.1.1")
+
+    // ═══ Fshare — HTML scraping + encrypted credentials ═══
+    implementation("org.jsoup:jsoup:1.18.3")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // ═══ Debug ═══
     debugImplementation("androidx.compose.ui:ui-tooling")

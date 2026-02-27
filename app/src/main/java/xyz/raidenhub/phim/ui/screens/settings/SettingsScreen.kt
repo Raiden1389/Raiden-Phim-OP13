@@ -41,6 +41,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import xyz.raidenhub.phim.notification.EpisodeCheckWorker
+import kotlinx.coroutines.launch
 
 
 
@@ -54,6 +55,7 @@ fun SettingsScreen() {
     val homeLayout by SettingsManager.homeLayout.collectAsState()   // CN-1
     val cardShape by SettingsManager.cardShape.collectAsState()       // VP-5
     val context = LocalContext.current
+    val settingsScope = rememberCoroutineScope()
     var showQualitySheet by remember { mutableStateOf(false) }
 
     LazyColumn(
@@ -319,6 +321,130 @@ fun SettingsScreen() {
             Spacer(Modifier.height(24.dp))
         }
 
+        // ═══ Fshare HD Settings ═══
+        item {
+            Text("📁 Fshare HD", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+        }
+
+        item {
+            val fshareRepo = remember { xyz.raidenhub.phim.data.repository.FshareRepository.getInstance(context) }
+            var fsLoggedIn by remember { mutableStateOf(fshareRepo.isLoggedIn()) }
+            var fsEmail by remember { mutableStateOf(fshareRepo.getSavedEmail() ?: "") }
+            var fsUserInfo by remember { mutableStateOf(fshareRepo.currentUser) }
+            var isLoggingIn by remember { mutableStateOf(false) }
+            var loginError by remember { mutableStateOf<String?>(null) }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(C.Surface)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                when {
+                    fsLoggedIn && fsUserInfo != null -> {
+                        // Logged in — show user info
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("✅ Đã đăng nhập", color = C.Primary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                    if (fsUserInfo!!.isVip) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .background(C.Primary.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("VIP 🟢", color = C.Primary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                                Text(fsEmail, color = C.TextSecondary, fontSize = 12.sp)
+                                if (fsUserInfo!!.expireDate.isNotEmpty()) {
+                                    Text("Hết hạn: ${fsUserInfo!!.expireDate}", color = C.TextMuted, fontSize = 11.sp)
+                                }
+                            }
+                            TextButton(onClick = {
+                                fshareRepo.logout()
+                                fsLoggedIn = false
+                                fsUserInfo = null
+                                fsEmail = ""
+                                Toast.makeText(context, "✅ Đã đăng xuất Fshare", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Đăng xuất", color = C.Error, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                    isLoggingIn -> {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(color = C.Primary, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Text("Đang đăng nhập Fshare...", color = C.TextSecondary, fontSize = 14.sp)
+                        }
+                    }
+                    else -> {
+                        // Not logged in — show login button
+                        Text("Chưa đăng nhập Fshare", color = C.TextSecondary, fontSize = 14.sp)
+                        if (loginError != null) {
+                            Text("⚠️ $loginError", color = C.Error, fontSize = 12.sp)
+                        }
+                        val hasBuiltinCreds = BuildConfig.FSHARE_EMAIL.isNotBlank()
+                        Text(
+                            if (hasBuiltinCreds) "Tài khoản Fshare đã được cấu hình sẵn trong ứng dụng"
+                            else "Cần cấu hình FSHARE_EMAIL trong local.properties",
+                            color = C.TextMuted, fontSize = 11.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(C.Primary)
+                                .clickable {
+                                    if (isLoggingIn) return@clickable
+                                    isLoggingIn = true
+                                    loginError = null
+                                    settingsScope.launch {
+                                        val result = fshareRepo.autoLogin()
+                                        result.onSuccess { info ->
+                                            fsLoggedIn = true
+                                            fsUserInfo = info
+                                            fsEmail = info.email
+                                            Toast.makeText(context, "✅ Đăng nhập Fshare thành công!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        result.onFailure { e ->
+                                            loginError = e.message
+                                        }
+                                        isLoggingIn = false
+                                    }
+                                }
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🔑 Đăng nhập Fshare", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
+
+        // Divider
+        item {
+            HorizontalDivider(color = C.Surface, thickness = 1.dp)
+            Spacer(Modifier.height(24.dp))
+        }
+
         // ═══ H-6: Sắp xếp các hàng phim ═══
         item {
             Text("🗂️ Sắp xếp trang chủ", color = C.TextPrimary, fontSize = 18.sp, fontFamily = JakartaFamily, fontWeight = FontWeight.Bold)
@@ -327,29 +453,41 @@ fun SettingsScreen() {
             Spacer(Modifier.height(12.dp))
         }
 
-        // H-6: Render each section with move up/down buttons
+        // H-6: Render each section with move up/down + visibility toggle buttons
         item {
             val sectionOrder by SectionOrderManager.order.collectAsState(initial = emptyList())
+            val sectionVisibility by SectionOrderManager.visibility.collectAsState(initial = emptyMap())
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 sectionOrder.forEachIndexed { idx, id ->
                     val info = SectionOrderManager.getSectionInfo(id)
+                    val isVisible = sectionVisibility[id] ?: true
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(C.Surface)
+                            .background(if (isVisible) C.Surface else C.Surface.copy(alpha = 0.4f))
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
                             "${info?.emoji ?: "▪"} ${info?.label ?: id}",
-                            color = C.TextPrimary,
+                            color = if (isVisible) C.TextPrimary else C.TextMuted,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.weight(1f)
                         )
                         Row {
+                            // Visibility toggle
+                            IconButton(
+                                onClick = { SectionOrderManager.toggleVisibility(id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    if (isVisible) "👁" else "🚫",
+                                    fontSize = 14.sp
+                                )
+                            }
                             IconButton(
                                 onClick = { SectionOrderManager.moveUp(id) },
                                 enabled = idx > 0,

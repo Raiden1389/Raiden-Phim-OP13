@@ -6,6 +6,8 @@ object Constants {
     // ═══ API Base URLs ═══
     const val OPHIM_BASE_URL  = "https://ophim1.com/v1/api/"
     const val KKPHIM_BASE_URL = "https://phimapi.com/"
+    const val FSHARE_BASE_URL = "https://api.fshare.vn/api/"
+    const val THUVIENCINE_URL = "https://thuviencine.com"
 
     // ═══ Image CDNs ═══
     const val OPHIM_IMG_CDN  = "https://img.ophim.live/uploads/movies/"
@@ -52,6 +54,12 @@ object Constants {
     // ═══ SuperStream — API keys từ BuildConfig (local.properties) ═══
     val TMDB_API_KEY: String get() = BuildConfig.TMDB_API_KEY
     val FEBBOX_COOKIE: String get() = BuildConfig.FEBBOX_COOKIE
+
+    // ═══ Fshare — credentials từ BuildConfig ═══
+    val FSHARE_EMAIL: String get() = BuildConfig.FSHARE_EMAIL
+    val FSHARE_PASSWORD: String get() = BuildConfig.FSHARE_PASSWORD
+    val FSHARE_APP_KEY: String get() = BuildConfig.FSHARE_APP_KEY
+    val FSHARE_USER_AGENT: String get() = BuildConfig.FSHARE_USER_AGENT
 
     const val TMDB_BASE_URL = "https://api.themoviedb.org/3/"
     const val TMDB_IMG_W342 = "https://image.tmdb.org/t/p/w342"

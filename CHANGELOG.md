@@ -1,6 +1,14 @@
 # Raiden Phim — Changelog
 ## v1.20.8 — 2026-02-23 (Player UX + Episode Badge)
 
+### 💎 Fshare HD — HomeScreen Integration (checkpoint 2026-02-27)
+- **Fshare Phim Lẻ & Phim Bộ rows** trên HomeScreen — load từ ThuVienCine, poster + quality badge + năm
+- **FshareCategoryScreen** — grid listing với infinite scroll pagination khi bấm "Xem thêm →"
+- **Ẩn/hiện rows trong Settings** — toggle 👁/🚫 cho mỗi section, hidden rows dimmed + không render trên Home
+- **SectionOrderManager** — thêm `fshare_movies`, `fshare_series`, `visibleOrder` flow, `toggleVisibility()`
+- **Fshare Login fix** — đổi User-Agent sang `kodivietmediaf-K58W6U`, bỏ Content-Type override gây 405
+- **ThuVienCine URL detection fix** — chỉ coi URL là Fshare direct khi chứa `fshare.vn`, tránh gửi nhầm ThuVienCine URL tới Fshare API
+
 ### ✨ Player — Gesture & Controls
 
 #### 🕹️ PL-3 — Swipe Horizontal Seek (MX Player style)

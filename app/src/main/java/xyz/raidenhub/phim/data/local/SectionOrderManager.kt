@@ -21,12 +21,14 @@ object SectionOrderManager {
     data class HomeSection(val id: String, val label: String, val emoji: String)
 
     val ALL_SECTIONS = listOf(
-        HomeSection("new",     "Phim Mới",   "🔥"),
-        HomeSection("korean",  "K-Drama",    "🇰🇷"),
-        HomeSection("series",  "Phim Bộ",    "📺"),
-        HomeSection("single",  "Phim Lẻ",    "🎬"),
-        HomeSection("anime",   "Hoạt Hình",  "🎌"),
-        HomeSection("tvshows", "TV Shows",   "📺"),
+        HomeSection("new",           "Phim Mới",          "🔥"),
+        HomeSection("korean",        "K-Drama",           "🇰🇷"),
+        HomeSection("series",        "Phim Bộ",           "📺"),
+        HomeSection("single",        "Phim Lẻ",           "🎬"),
+        HomeSection("anime",         "Hoạt Hình",         "🎌"),
+        HomeSection("tvshows",       "TV Shows",          "📺"),
+        HomeSection("fshare_movies", "Fshare Phim Lẻ",    "💎"),
+        HomeSection("fshare_series", "Fshare Phim Bộ",    "💎"),
     )
 
     fun init(db: AppDatabase) {
@@ -43,13 +45,27 @@ object SectionOrderManager {
         }
     }
 
-    /** Reactive ordered list of section IDs */
+    /** Reactive ordered list of VISIBLE section IDs (for HomeScreen) */
+    val visibleOrder: Flow<List<String>>
+        get() = db.sectionOrderDao().getAll().map { list ->
+            val visible = list.filter { it.isVisible }.map { it.sectionId }
+            val allIds = ALL_SECTIONS.map { it.id }
+            val missing = allIds.filter { id -> id !in list.map { it.sectionId } }
+            visible + missing
+        }
+
+    /** Reactive ordered list of ALL section IDs with visibility (for Settings) */
     val order: Flow<List<String>>
         get() = db.sectionOrderDao().getAll().map { list ->
             val ids = list.map { it.sectionId }
-            // Merge new sections not in DB yet
             val missing = ALL_SECTIONS.map { it.id }.filter { it !in ids }
             ids + missing
+        }
+
+    /** Reactive map of sectionId → isVisible */
+    val visibility: Flow<Map<String, Boolean>>
+        get() = db.sectionOrderDao().getAll().map { list ->
+            list.associate { it.sectionId to it.isVisible }
         }
 
     fun reorder(newOrder: List<String>) {
@@ -90,4 +106,24 @@ object SectionOrderManager {
     }
 
     fun getSectionInfo(id: String) = ALL_SECTIONS.find { it.id == id }
+
+    fun toggleVisibility(id: String) {
+        scope.launch {
+            val all = db.sectionOrderDao().getAllOnce()
+            val entity = all.find { it.sectionId == id }
+            if (entity != null) {
+                db.sectionOrderDao().upsert(entity.copy(isVisible = !entity.isVisible))
+            } else {
+                // Not in DB yet — add with visibility=false (hiding)
+                val pos = ALL_SECTIONS.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: all.size
+                db.sectionOrderDao().upsert(SectionOrderEntity(sectionId = id, position = pos, isVisible = false))
+            }
+        }
+    }
+
+    fun isVisible(id: String): Boolean {
+        return runBlocking {
+            db.sectionOrderDao().getAllOnce().find { it.sectionId == id }?.isVisible ?: true
+        }
+    }
 }

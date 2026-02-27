@@ -1,5 +1,6 @@
 package xyz.raidenhub.phim.ui.screens.player
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,6 +111,63 @@ class PlayerViewModel : ViewModel() {
                 }
         }
     }
+
+    // ═══ Fshare vars ═══
+    private var fsSlug: String = ""
+    private var fsPosterUrl: String = ""
+
+    /**
+     * Fshare source: resolve CDN URL via FsharePlayerLoader.
+     * Builds episode list from folder, resolves current episode's download URL.
+     */
+    fun loadFshare(context: Context, movieSlug: String, episodeSlug: String, epIdx: Int = 0) {
+        fsSlug = movieSlug
+        viewModelScope.launch {
+            try {
+                val result = FsharePlayerLoader.load(context, movieSlug, episodeSlug)
+                _title.value = result.movieName
+                fsPosterUrl = result.posterUrl
+                _episodes.value = result.episodes
+
+                // Find current episode index by slug
+                val idx = result.episodes.indexOfFirst { it.slug == episodeSlug }
+                _currentEp.value = if (idx >= 0) idx else epIdx.coerceIn(0, (result.episodes.size - 1).coerceAtLeast(0))
+
+                // Put CDN download URL into the episode's linkM3u8 for playback
+                _episodes.value = _episodes.value.mapIndexed { i, ep ->
+                    if (i == _currentEp.value) ep.copy(linkM3u8 = result.downloadUrl)
+                    else ep
+                }
+            } catch (e: Exception) {
+                // Fallback: single episode with error
+                _title.value = "Fshare"
+                _episodes.value = listOf(
+                    Episode(name = "Lỗi: ${e.message}", slug = "error", linkEmbed = "", linkM3u8 = "")
+                )
+            }
+        }
+    }
+
+    /**
+     * Resolve CDN URL for a specific Fshare episode (lazy, called when switching episodes).
+     */
+    fun fetchFshareEp(context: Context, episodeSlug: String) {
+        viewModelScope.launch {
+            try {
+                val fshareRepo = xyz.raidenhub.phim.data.repository.FshareRepository.getInstance(context)
+                val cdnUrl = fshareRepo.resolveLink(episodeSlug)
+                _episodes.value = _episodes.value.map { ep ->
+                    if (ep.slug == episodeSlug) ep.copy(linkM3u8 = cdnUrl)
+                    else ep
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PlayerVM", "Fshare resolve failed: ${e.message}")
+            }
+        }
+    }
+
+    /** Fshare poster URL (for watch history thumbnail) */
+    fun getFsharePosterUrl(): String = fsPosterUrl
 }
 
 // ═══ Utility ═══

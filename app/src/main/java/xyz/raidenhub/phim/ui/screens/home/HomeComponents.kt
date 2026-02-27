@@ -401,3 +401,95 @@ fun ShimmerHomeScreen() {
         }
     }
 }
+
+// ═══ Fshare HD Row ═══
+
+@Composable
+fun FshareRow(
+    title: String,
+    items: List<xyz.raidenhub.phim.data.api.models.CineMovie>,
+    onItemClick: (xyz.raidenhub.phim.data.api.models.CineMovie) -> Unit,
+    onSeeMore: () -> Unit = {}
+) {
+    if (items.isEmpty()) return
+    Column(modifier = Modifier.padding(top = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF4CAF50).copy(alpha = 0.15f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text("HD", color = Color(0xFF4CAF50), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text("Xem thêm →", color = C.Primary, fontFamily = InterFamily, fontSize = 13.sp,
+                modifier = Modifier.clickable(onClick = onSeeMore))
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            items(items, key = { it.slug }) { movie ->
+                Column(
+                    modifier = Modifier
+                        .width(130.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onItemClick(movie) }
+                        .padding(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(C.Surface)
+                    ) {
+                        AsyncImage(
+                            model = movie.thumbnailUrl,
+                            contentDescription = movie.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Quality badge
+                        if (movie.quality.isNotBlank()) {
+                            Text(
+                                movie.quality,
+                                color = Color.White,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .background(C.Primary.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    Text(
+                        movie.title,
+                        color = C.TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                    if (movie.year.isNotBlank()) {
+                        Text(
+                            movie.year,
+                            color = C.TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

@@ -77,7 +77,7 @@ fun PlayerScreen(
     server: Int,
     episode: Int,
     startPositionMs: Long = 0L,
-    source: String = "kkphim",          // "kkphim" | "superstream"
+    source: String = "kkphim",          // "kkphim" | "superstream" | "fshare"
     streamUrl: String = "",             // SuperStream: direct m3u8 URL
     streamTitle: String = "",           // SuperStream: video title
     streamSeason: Int = 0,             // SuperStream: season number (for sub search)
@@ -86,6 +86,7 @@ fun PlayerScreen(
     tmdbId: Int = 0,                   // SuperStream: TMDB ID for fetching next episode
     totalEpisodes: Int = 0,            // SuperStream: total episodes in season
     shareKey: String = "",             // SuperStream: FebBox share key for next episode
+    fshareEpSlug: String = "",         // Fshare: episode slug (fshare.vn/file/XXX URL)
     onBack: () -> Unit,
     vm: PlayerViewModel = viewModel()
 ) {
@@ -153,16 +154,33 @@ fun PlayerScreen(
 
     // Effective slug for SuperStream (slug is empty for SS content)
     val effectiveSlug = remember(slug, source, tmdbId, streamType) {
-        if (source == "superstream" && slug.isBlank()) "ss_${streamType}_${tmdbId}"
-        else slug
+        when {
+            source == "superstream" && slug.isBlank() -> "ss_${streamType}_${tmdbId}"
+            source == "fshare" -> {
+                // Clean slug for watch history: "fshare:https://fshare.vn/file/XXX"
+                val epUrl = fshareEpSlug.ifBlank { slug.split("|||").firstOrNull()?.removePrefix("fshare-folder:")?.removePrefix("fshare-file:") ?: slug }
+                "fshare:$epUrl"
+            }
+            else -> slug
+        }
     }
 
-    // ═══ LOAD — branch theo source ═══
     LaunchedEffect(slug, source) {
-        if (source == "superstream" && streamUrl.isNotBlank()) {
-            vm.loadSuperStream(streamUrl, streamTitle, tmdbId, streamSeason, streamEpisode, streamType, totalEpisodes, shareKey)
-        } else {
-            vm.load(slug, server, episode)
+        when (source) {
+            "superstream" -> {
+                if (streamUrl.isNotBlank()) {
+                    vm.loadSuperStream(streamUrl, streamTitle, tmdbId, streamSeason, streamEpisode, streamType, totalEpisodes, shareKey)
+                }
+            }
+            "fshare" -> {
+                val epSlug = fshareEpSlug.ifBlank {
+                    slug.split("|||").firstOrNull()
+                        ?.removePrefix("fshare-folder:")
+                        ?.removePrefix("fshare-file:") ?: slug
+                }
+                vm.loadFshare(context, slug, epSlug, episode)
+            }
+            else -> vm.load(slug, server, episode)
         }
     }
 
@@ -181,6 +199,8 @@ fun PlayerScreen(
                     val e = parts[3].toIntOrNull() ?: return@LaunchedEffect
                     vm.fetchSuperStreamEp(s, e)
                 }
+            } else if (source == "fshare" && curEp.slug.startsWith("https://")) {
+                vm.fetchFshareEp(context, curEp.slug)
             }
         }
 
@@ -195,6 +215,8 @@ fun PlayerScreen(
                     val e = parts[3].toIntOrNull() ?: return@LaunchedEffect
                     vm.fetchSuperStreamEp(s, e)
                 }
+            } else if (source == "fshare" && nextEp.slug.startsWith("https://")) {
+                vm.fetchFshareEp(context, nextEp.slug)
             }
         }
     }
@@ -243,7 +265,7 @@ fun PlayerScreen(
 
     // SuperStream: ep URL đang được fetch (placeholder rỗng) → show loading
     val isFetchingEp = remember(currentEp, episodes, source) {
-        source == "superstream" &&
+        (source == "superstream" || source == "fshare") &&
         episodes.getOrNull(currentEp)?.linkM3u8.isNullOrBlank() &&
         episodes.isNotEmpty()
     }
@@ -316,7 +338,7 @@ fun PlayerScreen(
 
             // ─── Auto-next logic (chỉ cho VN source, không áp cho SuperStream) ───
             if (!autoPlayEnabled || !vm.hasNext() || autoNextTriggered) continue
-            if (source == "superstream") continue  // SS: user tự next hoặc tập kết thúc tự nhiên
+            if (source == "superstream" || source == "fshare") continue  // SS/Fshare: user tự next hoặc tập kết thúc tự nhiên
 
             val shouldNext = if (effectiveConfig?.hasOutro == true) {
                 pos >= effectiveConfig!!.outroStartMs
@@ -344,7 +366,7 @@ fun PlayerScreen(
             override fun onPlaybackStateChanged(state: Int) {
                 if (state == Player.STATE_ENDED && vm.hasNext()
                     && SettingsManager.autoPlayNext.value
-                    && source != "superstream") {
+                    && source != "superstream" && source != "fshare") {
                     vm.nextEp()
                 }
             }

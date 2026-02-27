@@ -34,6 +34,7 @@ import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Movie
+import xyz.raidenhub.phim.data.api.models.CineMovie
 import xyz.raidenhub.phim.data.local.FavoriteManager
 import xyz.raidenhub.phim.data.local.HeroFilterManager
 import xyz.raidenhub.phim.data.local.SectionOrderManager
@@ -49,9 +50,13 @@ fun HomeScreen(
     onMovieClick: (String) -> Unit,
     onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit = { _, _, _, _, _ -> },
     onCategoryClick: (String, String) -> Unit,
+    onFshareClick: (String) -> Unit = {},     // enriched slug: "fshare-folder:URL|||NAME|||THUMB"
+    onFshareSeeMore: (url: String, title: String) -> Unit = { _, _ -> },
     vm: HomeViewModel = viewModel()
 ) {
     val state by vm.state.collectAsState()
+    val fshareMovies by vm.fshareMovies.collectAsState()
+    val fshareSeries by vm.fshareSeries.collectAsState()
     val favorites by FavoriteManager.favorites.collectAsState(initial = emptyList())
     val allContinue by WatchHistoryManager.continueList.collectAsState(initial = emptyList())
     val continueList = remember(allContinue) {
@@ -79,8 +84,8 @@ fun HomeScreen(
         is HomeState.Success -> {
             val d = s.data
             val settingsGenres by SettingsManager.selectedGenres.collectAsState()
-            // H-6: section order state (collected in composable scope, usable in LazyListScope)
-            val sectionOrder by SectionOrderManager.order.collectAsState(initial = emptyList())
+            // H-6: section order state — only visible sections (collected in composable scope, usable in LazyListScope)
+            val sectionOrder by SectionOrderManager.visibleOrder.collectAsState(initial = emptyList())
             // P6: Hoist hiddenSlugs ra ngoài LazyColumn — tránh re-subscribe mỗi recompose
             val hiddenSlugs by HeroFilterManager.hiddenSlugs.collectAsState(initial = emptySet())
 
@@ -453,12 +458,46 @@ fun HomeScreen(
                 )
 
                 sectionOrder.forEach { sectionId ->
-                    val triple = sectionMap[sectionId] ?: return@forEach
-                    val (label, movies, catPair) = triple
-                    if (movies.isNotEmpty()) {
-                        item(key = label) {
-                            MovieRowSection(label, movies, onMovieClick, onContinue, haptic) {
-                                onCategoryClick(catPair.first, catPair.second)
+                    // OPhim rows
+                    val triple = sectionMap[sectionId]
+                    if (triple != null) {
+                        val (label, movies, catPair) = triple
+                        if (movies.isNotEmpty()) {
+                            item(key = label) {
+                                MovieRowSection(label, movies, onMovieClick, onContinue, haptic) {
+                                    onCategoryClick(catPair.first, catPair.second)
+                                }
+                            }
+                        }
+                        return@forEach
+                    }
+
+                    // Fshare rows
+                    when (sectionId) {
+                        "fshare_movies" -> if (fshareMovies.isNotEmpty()) {
+                            item(key = "fshare_movies") {
+                                FshareRow(
+                                    title = "💎 Fshare Phim Lẻ",
+                                    items = fshareMovies,
+                                    onItemClick = { movie ->
+                                        val enriched = "fshare-folder:${movie.detailUrl}|||${movie.title}|||${movie.thumbnailUrl}"
+                                        onFshareClick(enriched)
+                                    },
+                                    onSeeMore = { onFshareSeeMore("https://thuviencine.com/movies/", "Fshare Phim Lẻ") }
+                                )
+                            }
+                        }
+                        "fshare_series" -> if (fshareSeries.isNotEmpty()) {
+                            item(key = "fshare_series") {
+                                FshareRow(
+                                    title = "💎 Fshare Phim Bộ",
+                                    items = fshareSeries,
+                                    onItemClick = { movie ->
+                                        val enriched = "fshare-folder:${movie.detailUrl}|||${movie.title}|||${movie.thumbnailUrl}"
+                                        onFshareClick(enriched)
+                                    },
+                                    onSeeMore = { onFshareSeeMore("https://thuviencine.com/tv-series/", "Fshare Phim Bộ") }
+                                )
                             }
                         }
                     }

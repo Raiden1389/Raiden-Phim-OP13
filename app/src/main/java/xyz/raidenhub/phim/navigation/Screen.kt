@@ -33,4 +33,14 @@ sealed class Screen(val route: String) {
     data object SuperStreamDetail : Screen("superstream_detail/{tmdbId}/{type}") {
         fun createRoute(tmdbId: Int, type: String) = "superstream_detail/$tmdbId/$type"
     }
+    // Fshare HD
+    data object Community : Screen("community")
+    data object FshareDetail : Screen("fshare_detail/{detailUrl}") {
+        fun createRoute(detailUrl: String) =
+            "fshare_detail/${java.net.URLEncoder.encode(detailUrl, "UTF-8")}"
+    }
+    data object FshareCategory : Screen("fshare_category/{categoryUrl}/{title}") {
+        fun createRoute(categoryUrl: String, title: String) =
+            "fshare_category/${java.net.URLEncoder.encode(categoryUrl, "UTF-8")}/${java.net.URLEncoder.encode(title, "UTF-8")}"
+    }
 }

@@ -104,5 +104,38 @@ object ApiClient {
             .build()
     }
 
-}
+    // ═══ Fshare API ═══
 
+    // Fshare needs separate OkHttp client with custom User-Agent
+    private val fshareOkHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .header("User-Agent", FshareApi.USER_AGENT)
+                    .build()
+                chain.proceed(request)
+            }
+            .apply {
+                if (BuildConfig.DEBUG) {
+                    addInterceptor(
+                        HttpLoggingInterceptor().apply {
+                            level = HttpLoggingInterceptor.Level.BODY
+                        }
+                    )
+                }
+            }
+            .build()
+    }
+
+    val fshare: FshareApi by lazy {
+        Retrofit.Builder()
+            .baseUrl(Constants.FSHARE_BASE_URL)
+            .client(fshareOkHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FshareApi::class.java)
+    }
+
+}

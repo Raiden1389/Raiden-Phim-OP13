@@ -22,7 +22,7 @@ import xyz.raidenhub.phim.ui.theme.RaidenPhimTheme
  *  server      — server index
  *  episode     — episode index
  *  positionMs  — resume position
- *  source      — "kkphim" (default) | "superstream"
+ *  source      — "kkphim" (default) | "superstream" | "fshare"
  */
 class PlayerActivity : ComponentActivity() {
 
@@ -71,6 +71,8 @@ class PlayerActivity : ComponentActivity() {
         val tmdbId        = intent.getIntExtra("tmdb_id", 0)
         val totalEpisodes = intent.getIntExtra("total_episodes", 0)
         val shareKey      = intent.getStringExtra("share_key") ?: ""
+        // Fshare extras (reuses slug for enriched slug, episode for ep index)
+        val fshareEpSlug  = intent.getStringExtra("fshare_ep_slug") ?: ""
 
         setContent {
             RaidenPhimTheme {
@@ -88,6 +90,7 @@ class PlayerActivity : ComponentActivity() {
                     tmdbId         = tmdbId,
                     totalEpisodes  = totalEpisodes,
                     shareKey       = shareKey,
+                    fshareEpSlug   = fshareEpSlug,
                     onBack         = { finish() }
                 )
             }
