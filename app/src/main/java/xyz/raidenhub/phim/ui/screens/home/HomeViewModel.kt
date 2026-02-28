@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.CineMovie
 import xyz.raidenhub.phim.data.repository.MovieRepository
-import xyz.raidenhub.phim.data.repository.ThuVienCineRepository
+import xyz.raidenhub.phim.data.repository.FshareAggregator
 import xyz.raidenhub.phim.util.AppError
 import xyz.raidenhub.phim.util.toAppError
 
@@ -44,22 +44,19 @@ class HomeViewModel : ViewModel() {
     val fshareSeries = _fshareSeries.asStateFlow()
 
     private fun loadFshare() {
+        val hub = FshareAggregator()
         viewModelScope.launch {
             try {
-                val repo = ThuVienCineRepository()
-                val movies = repo.getMovies("https://thuviencine.com/movies/")
-                android.util.Log.d("HomeVM", "Fshare movies loaded: ${movies.size}")
-                _fshareMovies.value = movies.take(12)
+                val movies = hub.getHomeMovies()
+                _fshareMovies.value = movies.take(16)
             } catch (e: Exception) {
                 android.util.Log.e("HomeVM", "Fshare movies failed", e)
             }
         }
         viewModelScope.launch {
             try {
-                val repo = ThuVienCineRepository()
-                val series = repo.getMovies("https://thuviencine.com/tv-series/")
-                android.util.Log.d("HomeVM", "Fshare series loaded: ${series.size}")
-                _fshareSeries.value = series.take(12)
+                val series = hub.getHomeSeries()
+                _fshareSeries.value = series.take(16)
             } catch (e: Exception) {
                 android.util.Log.e("HomeVM", "Fshare series failed", e)
             }

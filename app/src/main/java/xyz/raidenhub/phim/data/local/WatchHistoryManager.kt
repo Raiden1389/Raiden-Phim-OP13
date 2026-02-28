@@ -21,6 +21,7 @@ data class ContinueItem(
     val thumbUrl: String,
     val episodeIdx: Int,
     val episodeName: String = "",
+    val episodeSlug: String = "",
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val source: String = "ophim",
@@ -71,7 +72,8 @@ object WatchHistoryManager {
         episodeName: String,
         positionMs: Long,
         durationMs: Long,
-        source: String = "ophim"
+        source: String = "ophim",
+        episodeSlug: String = ""
     ) {
         scope.launch {
             db.watchHistoryDao().upsertContinue(
@@ -81,6 +83,7 @@ object WatchHistoryManager {
                     thumbUrl = thumbUrl,
                     episodeIdx = episodeIdx,
                     episodeName = episodeName,
+                    episodeSlug = episodeSlug,
                     positionMs = positionMs,
                     durationMs = durationMs,
                     source = source,
@@ -152,6 +155,7 @@ object WatchHistoryManager {
         thumbUrl = thumbUrl,
         episodeIdx = episodeIdx,
         episodeName = episodeName,
+        episodeSlug = episodeSlug,
         positionMs = positionMs,
         durationMs = durationMs,
         source = source,

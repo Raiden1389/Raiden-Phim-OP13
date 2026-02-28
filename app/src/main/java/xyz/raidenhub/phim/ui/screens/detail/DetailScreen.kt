@@ -3,43 +3,20 @@ package xyz.raidenhub.phim.ui.screens.detail
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -51,50 +28,18 @@ import xyz.raidenhub.phim.data.local.WatchHistoryManager
 import xyz.raidenhub.phim.data.local.WatchlistManager
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.ui.components.ShimmerDetailScreen
-import xyz.raidenhub.phim.ui.screens.detail.PendingDetailState
 import xyz.raidenhub.phim.ui.theme.C
-import xyz.raidenhub.phim.ui.theme.JakartaFamily
-import xyz.raidenhub.phim.ui.theme.InterFamily
 import xyz.raidenhub.phim.util.ImageUtils
-import xyz.raidenhub.phim.util.TextUtils
 
-// VP-2: Count-up animation cho số — premium feel
-@Composable
-private fun AnimatedIntCounter(
-    target: Int,
-    suffix: String = "",
-    prefix: String = "",
-    durationMs: Int = 900
-) {
-    // Bắt đầu từ 0, sau LaunchedEffect mới set target → count-up animation
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(target) { started = true }
-    val animatedValue by animateIntAsState(
-        targetValue = if (started) target else 0,
-        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
-        label = "int_counter"
-    )
-    Text("$prefix$animatedValue$suffix", color = C.TextSecondary, fontSize = 13.sp)
-}
-
-@Composable
-private fun AnimatedFloatCounter(
-    target: Float,
-    suffix: String = "",
-    prefix: String = "",
-    durationMs: Int = 1000
-) {
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(target) { started = true }
-    val animatedValue by animateFloatAsState(
-        targetValue = if (started) target else 0f,
-        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
-        label = "float_counter"
-    )
-    Text("$prefix${String.format("%.1f", animatedValue)}$suffix", color = C.TextSecondary, fontSize = 13.sp)
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/**
+ * DetailScreen — orchestrator composable.
+ *
+ * All visual sections are extracted into dedicated files:
+ *   DetailBackdrop, DetailActionRow, DetailInfoSection,
+ *   DetailEpisodeGrid, DetailSeasonRow, DetailRelatedRow,
+ *   DetailPlaylistDialog, DetailAnimations
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     slug: String,
@@ -123,50 +68,46 @@ fun DetailScreen(
             }
         }
         is DetailState.Success -> {
-            PendingDetailState.clear() // xóa preview data sau khi load xong
-            // B-3: Entrance animation (card → full-screen feel)
+            PendingDetailState.clear()
+            // B-3: Entrance animation
             val enterAlpha = remember { Animatable(0f) }
             val enterScale = remember { Animatable(0.95f) }
             LaunchedEffect(Unit) {
-                launch {
-                    enterAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
-                }
-                launch {
-                    enterScale.animateTo(1f, tween(450, easing = FastOutSlowInEasing))
-                }
+                launch { enterAlpha.animateTo(1f, tween(400, easing = FastOutSlowInEasing)) }
+                launch { enterScale.animateTo(1f, tween(450, easing = FastOutSlowInEasing)) }
             }
+
             val movie = s.movie
             val episodes = s.episodes
             var selectedServer by remember { mutableIntStateOf(0) }
-            // A-8: Dynamic accent color from poster
+
+            // A-8: Dynamic accent color
             val posterUrl = movie.posterUrl.ifBlank { movie.thumbUrl }
             val rawDominant = rememberDominantColor(ImageUtils.detailImage(posterUrl))
-            val accentColor by animateColorAsState(
-                targetValue = rawDominant,
-                animationSpec = tween(600),
-                label = "accent_color"
-            )
+            val accentColor by animateColorAsState(rawDominant, tween(600), label = "accent_color")
+
             val isFav = favorites.any { it.slug == slug }
             val watchedSet = watchedEpIndices.toSet()
-            // C-4: Watchlist state
+
+            // C-4: Watchlist
             val watchlistItems by WatchlistManager.items.collectAsState(initial = emptyList())
             val isWatchlisted = watchlistItems.any { it.slug == slug }
-            // C-5: Playlist sheet
+
+            // C-5: Playlist
             val playlists by PlaylistManager.playlists.collectAsState(initial = emptyList())
             var showPlaylistSheet by remember { mutableStateOf(false) }
 
-            // #20 — Detect continue watching position
+            // Continue watching
             val continueItem = continueList.find { it.slug == slug }
             val continueEp = continueItem?.episode ?: 0
             val hasContinue = continueItem != null
+
             // D-8: Episode sort
             var episodeSortAsc by remember { mutableStateOf(true) }
 
-            // #17 — Fetch IMDb rating from OMDB API
+            // #17 / D-3 — External ratings + cast photos
             var imdbRating by remember { mutableStateOf<String?>(null) }
-            // D-3 — Fetch TMDB rating
             var tmdbRating by remember { mutableStateOf<String?>(null) }
-            // Cast photos from TMDB
             var actorPhotos by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
             LaunchedEffect(movie.originName, movie.name) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -174,16 +115,16 @@ fun DetailScreen(
                         val title = movie.originName.ifBlank { movie.name }
                         val encodedTitle = java.net.URLEncoder.encode(title, "UTF-8")
                         val year = if (movie.year > 0) "&y=${movie.year}" else ""
+                        val client = OkHttpClient()
                         // IMDb via OMDB
                         val omdbUrl = "https://www.omdbapi.com/?apikey=2692d710&t=$encodedTitle$year"
-                        val client = OkHttpClient()
                         val omdbResp = client.newCall(Request.Builder().url(omdbUrl).build()).execute()
                         val omdbJson = JSONObject(omdbResp.body?.string() ?: "")
                         if (omdbJson.optString("Response") == "True") {
                             val rating = omdbJson.optString("imdbRating", "N/A")
                             if (rating != "N/A") imdbRating = rating
                         }
-                        // D-3: TMDB search → vote_average + cast photos
+                        // TMDB
                         val tmdbToken = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3NTg5MDVlZjk4MGM3YjE3YWJhYjU0NDFlODAzMzkxNCIsIm5iZiI6MTc3MTM5MDkwMS40NzksInN1YiI6IjY5OTU0N2I1MjZlZTNlMWFlM2ZhNDBhNyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.-3O6afnx0tBl0Ybkf7Lvd4m0N2NUSSZMmzM43nhHZB0"
                         val tmdbSearchUrl = "https://api.themoviedb.org/3/search/multi?query=$encodedTitle&language=vi-VN"
                         val tmdbResp = client.newCall(Request.Builder().url(tmdbSearchUrl).header("Authorization", "Bearer $tmdbToken").build()).execute()
@@ -192,10 +133,7 @@ fun DetailScreen(
                         if (tmdbResults != null && tmdbResults.length() > 0) {
                             val firstResult = tmdbResults.getJSONObject(0)
                             val voteAvg = firstResult.optDouble("vote_average", 0.0)
-                            if (voteAvg > 0.0) {
-                                tmdbRating = String.format("%.1f", voteAvg)
-                            }
-                            // Fetch cast photos from TMDB credits
+                            if (voteAvg > 0.0) tmdbRating = String.format("%.1f", voteAvg)
                             val tmdbId = firstResult.optInt("id", 0)
                             val mediaType = firstResult.optString("media_type", "movie")
                             if (tmdbId > 0) {
@@ -223,7 +161,7 @@ fun DetailScreen(
                 }
             }
 
-            // #40 — Season Grouping state (hoisted above LazyColumn)
+            // #40 — Season grouping
             val seasonRegex = remember { Regex("""[(\[（]?\s*(?:Phần|Season|Mùa|Part|SS)\s*(\d+)\s*[)\]）]?""", RegexOption.IGNORE_CASE) }
             val baseName = remember(movie.name) {
                 movie.name.replace(seasonRegex, "").replace(Regex("""\s*\d+$"""), "").trim()
@@ -248,7 +186,7 @@ fun DetailScreen(
                 }
             }
 
-            // D-5: Related movies — fetch by first genre
+            // D-5: Related movies
             var relatedMovies by remember { mutableStateOf<List<Movie>>(emptyList()) }
             val firstGenre = movie.category.firstOrNull()?.slug ?: ""
             LaunchedEffect(slug, firstGenre) {
@@ -256,18 +194,15 @@ fun DetailScreen(
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         MovieRepository.search(firstGenre)
                             .onSuccess { results ->
-                                relatedMovies = results
-                                    .filter { it.slug != slug }
-                                    .take(12)
+                                relatedMovies = results.filter { it.slug != slug }.take(12)
                             }
                     }
                 }
             }
 
-            // A-6: Parallax scroll state
+            // A-6: Parallax scroll
             val listState = rememberLazyListState()
             val backdropHeightPx = with(LocalDensity.current) { 320.dp.toPx() }
-            // Calculate scroll offset for parallax
             val scrollOffset by remember {
                 derivedStateOf {
                     if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat()
@@ -276,571 +211,67 @@ fun DetailScreen(
             }
             val parallaxProgress = (scrollOffset / backdropHeightPx).coerceIn(0f, 1f)
 
+            // ═══ LazyColumn — delegates to extracted composables ═══
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .background(C.Background)
                     .graphicsLayer {
-                        // B-3: Entrance animation
                         alpha = enterAlpha.value
                         scaleX = enterScale.value
                         scaleY = enterScale.value
                     }
             ) {
-                // A-6: Parallax Backdrop with scroll-driven effects
+                item { DetailBackdrop(movie, accentColor, scrollOffset, parallaxProgress, onBack) }
+
                 item {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(320.dp)
-                            .clip(androidx.compose.ui.graphics.RectangleShape)  // clip parallax overflow
-                    ) {
-                        AsyncImage(
-                            model = ImageUtils.detailImage(movie.posterUrl.ifBlank { movie.thumbUrl }),
-                            contentDescription = movie.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    // Parallax: image đi lên (negative) cùng chiều scroll nhưng chậm hơn
-                                    // Dương = xuống → lộ trắng trên. Âm = lên → luôn phủ từ trên
-                                    translationY = -scrollOffset * 0.3f
-                                    val scale = 1f + (parallaxProgress * 0.1f)
-                                    scaleX = scale
-                                    scaleY = scale
-                                    alpha = 1f - (parallaxProgress * 0.3f)
-                                }
-                        )
-                        // Gradient overlay — more dramatic
-                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
-                            listOf(
-                                Color.Transparent,
-                                C.Background.copy(alpha = 0.3f),
-                                C.Background.copy(alpha = 0.85f),
-                                C.Background
-                            ),
-                            startY = 50f
-                        )))
-                        // Back button with glass bg
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier
-                                .padding(8.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color.Black.copy(alpha = 0.4f))
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = C.TextPrimary)
-                        }
-                        // Title area with enhanced typography
-                        Column(
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .padding(16.dp)
-                                .graphicsLayer {
-                                    // Title parallax: moves up slower
-                                    translationY = scrollOffset * 0.2f
-                                    alpha = 1f - (parallaxProgress * 0.8f)
-                                }
-                        ) {
-                            Text(movie.name, color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            if (movie.originName.isNotBlank())
-                                Text(movie.originName, color = C.TextSecondary, fontFamily = InterFamily, fontSize = 14.sp)
-                            Spacer(Modifier.height(8.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (movie.quality.isNotBlank()) Badge3(movie.quality, accentColor)
-                                if (movie.lang.isNotBlank()) Badge3(TextUtils.shortLang(movie.lang), C.Badge)
-                                if (movie.episodeCurrent.isNotBlank()) Badge3(movie.episodeCurrent, C.SurfaceVariant)
-                            }
-                        }
-                    }
+                    DetailActionRow(
+                        slug = slug, accentColor = accentColor, isFav = isFav,
+                        isWatchlisted = isWatchlisted, hasContinue = hasContinue,
+                        continueItem = continueItem, continueEp = continueEp,
+                        selectedServer = selectedServer, onPlay = onPlay,
+                        onToggleFav = { FavoriteManager.toggle(slug, movie.name, movie.thumbUrl) },
+                        onToggleWatchlist = { WatchlistManager.toggle(slug, movie.name, movie.thumbUrl) },
+                        onShowPlaylist = { showPlaylistSheet = true }
+                    )
                 }
 
-                // #20 — Play / Continue + Favorite buttons
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (hasContinue) onPlay(slug, selectedServer, continueEp)
-                                else onPlay(slug, selectedServer, 0)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.weight(1f).height(48.dp)
-                        ) {
-                            Icon(Icons.Default.PlayArrow, "Play", tint = C.TextPrimary)
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                if (hasContinue) "Tiếp tục Tập ${continueItem?.epName ?: (continueEp + 1)}"
-                                else "Xem Phim",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        // Favorite toggle
-                        IconButton(
-                            onClick = { FavoriteManager.toggle(slug, movie.name, movie.thumbUrl) },
-                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
-                        ) {
-                            Icon(
-                                if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                "Favorite",
-                                tint = if (isFav) C.Primary else C.TextSecondary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        // C-4: Watchlist toggle
-                        IconButton(
-                            onClick = { WatchlistManager.toggle(slug, movie.name, movie.thumbUrl) },
-                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
-                        ) {
-                            Icon(
-                                if (isWatchlisted) Icons.Default.Bookmark else Icons.Default.Add,
-                                contentDescription = if (isWatchlisted) "Đã xem sau" else "Xem sau",
-                                tint = if (isWatchlisted) C.Primary else C.TextSecondary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        // C-5: Add to playlist
-                        IconButton(
-                            onClick = { showPlaylistSheet = true },
-                            modifier = Modifier.size(48.dp).background(C.Surface, RoundedCornerShape(12.dp))
-                        ) {
-                            Text("📋", fontSize = 20.sp)
-                        }
-                    }
-                }
+                item { DetailInfoSection(movie, imdbRating, tmdbRating, actorPhotos) }
 
-                // Info grid
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp)) {
-                        val infos = buildList {
-                            // VP-2: IMDb/TMDB dùng AnimatedFloatCounter, năm dùng AnimatedIntCounter
-                            // (placeholder string cho flow compat)
-                            if (movie.year > 0) add("year:${movie.year}")
-                            if (movie.country.isNotEmpty()) add("🌍 ${movie.country.joinToString { it.name }}")
-                            if (movie.time.isNotBlank() && !movie.time.contains("?")) add("⏱ ${movie.time}")
-                            if (movie.episodeTotal.isNotBlank() && !movie.episodeTotal.contains("?")) {
-                                val epText = movie.episodeTotal
-                                val label = if (epText.contains("tập", ignoreCase = true)) epText else "$epText tập"
-                                add("📺 $label")
-                            }
-                        }
-                        // VP-2: Animated ratings row
-                        if (imdbRating != null || tmdbRating != null) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                imdbRating?.toFloatOrNull()?.let { rating ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text("⭐ IMDb ", color = C.TextSecondary, fontSize = 13.sp)
-                                        AnimatedFloatCounter(rating, suffix = "/10")
-                                    }
-                                }
-                                tmdbRating?.toFloatOrNull()?.let { rating ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Text("🍅 TMDB ", color = C.TextSecondary, fontSize = 13.sp)
-                                        AnimatedFloatCounter(rating, suffix = "/10")
-                                    }
-                                }
-                            }
-                        }
-                        // Static info row (nước, thời lượng, số tập)
-                        if (infos.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            ) {
-                                infos.forEach { info ->
-                                    if (info.startsWith("year:")) {
-                                        // VP-2: Year count-up animation
-                                        val year = info.removePrefix("year:").toIntOrNull() ?: 0
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("📅 ", color = C.TextSecondary, fontSize = 13.sp)
-                                            AnimatedIntCounter(year)
-                                        }
-                                    } else {
-                                        Text(info, color = C.TextSecondary, fontSize = 13.sp)
-                                    }
-                                }
-                            }
-                        }
+                item { DetailServerTabs(episodes, selectedServer) { selectedServer = it } }
 
-                        // Genres
-                        if (movie.category.isNotEmpty()) {
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp),
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            ) {
-                                movie.category.forEach {
-                                    Text(it.name, color = C.Accent, fontSize = 12.sp,
-                                        modifier = Modifier.background(C.SurfaceVariant, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 4.dp))
-                                }
-                            }
-                        }
-
-                        // #19 — Director
-                        if (movie.director.isNotEmpty() && movie.director.any { it.isNotBlank() }) {
-                            Text(
-                                "🎬 Đạo diễn: ${movie.director.filter { it.isNotBlank() }.joinToString(", ")}",
-                                color = C.TextSecondary,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
-                        }
-
-                        // D-6: Cast grid — scrollable horizontal row with TMDB photos
-                        if (movie.actor.isNotEmpty() && movie.actor.any { it.isNotBlank() }) {
-                            val actors = movie.actor.filter { it.isNotBlank() }
-                            Text(
-                                "🎭 Diễn viên:",
-                                color = C.TextSecondary,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            // Pre-compute: match OPhim actors → TMDB photos by name or position
-                            val tmdbKeys = actorPhotos.keys.toList()
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.padding(bottom = 12.dp)
-                            ) {
-                                items(actors.take(12).size) { idx ->
-                                    val actor = actors[idx]
-                                    // TMDB key = tiếng Anh (Kim Seon-ho). VN API = chữ Hàn (김선호)
-                                    // Dùng TMDB name nếu có positional match, fallback VN name
-                                    val tmdbName = tmdbKeys.getOrNull(idx)
-                                    val displayName = tmdbName ?: actor
-                                    val photoUrl = actorPhotos[actor]
-                                        ?: tmdbName?.let { actorPhotos[it] }
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.width(72.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(54.dp)
-                                                .clip(RoundedCornerShape(50))
-                                                .background(C.SurfaceVariant),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (photoUrl != null) {
-                                                AsyncImage(
-                                                    model = photoUrl,
-                                                    contentDescription = actor,
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(50))
-                                                )
-                                            } else {
-                                                Text("👤", fontSize = 22.sp)
-                                            }
-                                        }
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            displayName.split(" ").takeLast(2).joinToString(" "),
-                                            color = C.TextSecondary,
-                                            fontFamily = InterFamily,
-                                            fontSize = 10.sp,
-                                            maxLines = 2,
-                                            textAlign = TextAlign.Center,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // #14 / D-7 — Description (expandable with gradient fade)
-                        if (movie.content.isNotBlank()) {
-                            val cleaned = movie.content.replace(Regex("<[^>]*>"), "").trim()
-                            var expanded by remember { mutableStateOf(false) }
-                            Box(modifier = Modifier.padding(bottom = 4.dp)) {
-                                Text(
-                                    cleaned,
-                                    color = C.TextSecondary,
-                                    fontSize = 13.sp,
-                                    lineHeight = 20.sp,
-                                    maxLines = if (expanded) Int.MAX_VALUE else 4,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                // Gradient fade overlay when collapsed
-                                if (!expanded) {
-                                    Box(
-                                        modifier = Modifier
-                                            .matchParentSize()
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.Transparent,
-                                                        C.Background.copy(alpha = 0.85f),
-                                                        C.Background
-                                                    ),
-                                                    startY = 30f
-                                                )
-                                            )
-                                    )
-                                }
-                            }
-                            Text(
-                                if (expanded) "Thu gọn ▲" else "Xem thêm ▼",
-                                color = C.Primary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { expanded = !expanded }
-                                    .padding(bottom = 12.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Server tabs
-                if (episodes.size > 1) {
-                    item {
-                        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            episodes.forEachIndexed { idx, server ->
-                                val isActive = idx == selectedServer
-                                Text(
-                                    text = server.serverName.ifBlank { "Server ${idx + 1}" },
-                                    color = if (isActive) C.TextPrimary else C.TextSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isActive) C.Primary else C.Surface)
-                                        .clickable { selectedServer = idx }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // #40 — Season Grouping (state is hoisted above LazyColumn)
                 if (relatedSeasons.isNotEmpty()) {
-                    item {
-                        Text(
-                            "📺 Các phần khác (${relatedSeasons.size + 1} phần)",
-                            color = C.TextPrimary,
-                            fontFamily = JakartaFamily,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
-                        )
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Current season (highlighted)
-                            item {
-                                Text(
-                                    "Phần $currentSeason ★",
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .background(C.Primary, RoundedCornerShape(20.dp))
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                            // Other seasons
-                            items(relatedSeasons) { season ->
-                                val sNum = seasonRegex.find(season.name)?.groupValues?.get(1) ?: "?"
-                                Text(
-                                    "Phần $sNum",
-                                    color = C.TextPrimary,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(C.Surface)
-                                        .clickable { onSeasonClick(season.slug) }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                    }
+                    item { DetailSeasonRow(currentSeason, relatedSeasons, seasonRegex, onSeasonClick) }
                 }
 
-                // #21 — Episode grid with progress bars + D-8 sort toggle
                 if (episodes.isNotEmpty()) {
                     val eps = episodes.getOrNull(selectedServer)?.serverData.orEmpty()
-                    val displayEps = if (episodeSortAsc) eps else eps.reversed()
                     item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Danh sách tập", color = C.TextPrimary, fontFamily = JakartaFamily, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            // D-8: Sort toggle
-                            if (eps.size > 1) {
-                                Text(
-                                    if (episodeSortAsc) "↓ Mới nhất" else "↑ Tập 1",
-                                    color = C.Primary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(C.Primary.copy(0.15f))
-                                        .clickable { episodeSortAsc = !episodeSortAsc }
-                                        .padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
-                            }
-                        }
-                    }
-                    item {
-                        Column(Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp)) {
-                            displayEps.chunked(5).forEach { row ->
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    row.forEachIndexed { _, ep ->
-                                        val epIdx = eps.indexOf(ep)
-                                        val isWatched = watchedSet.contains(epIdx)
-                                        val epLabel = ep.name.ifBlank { "Tập ${epIdx + 1}" }
-                                        val epProgress = if (continueItem?.episode == epIdx) continueItem.progress else if (isWatched) 1f else 0f
-
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = if (isWatched) "✓ $epLabel" else epLabel,
-                                                color = if (isWatched) C.Primary else C.TextPrimary,
-                                                fontSize = 13.sp,
-                                                fontWeight = if (isWatched) FontWeight.Bold else FontWeight.Normal,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                                                    .background(if (isWatched) C.Primary.copy(0.15f) else C.Surface)
-                                                    .clickable { onPlay(slug, selectedServer, epIdx) }
-                                                    .padding(vertical = 10.dp)
-                                                    .wrapContentWidth(Alignment.CenterHorizontally)
-                                            )
-                                            if (epProgress > 0f && epProgress < 1f) {
-                                                LinearProgressIndicator(
-                                                    progress = { epProgress },
-                                                    modifier = Modifier.fillMaxWidth().height(3.dp),
-                                                    color = C.Primary,
-                                                    trackColor = C.Surface
-                                                )
-                                            } else if (isWatched) {
-                                                Box(Modifier.fillMaxWidth().height(3.dp).background(C.Primary))
-                                            } else {
-                                                Spacer(Modifier.fillMaxWidth().height(3.dp))
-                                            }
-                                        }
-                                    }
-                                    repeat(5 - row.size) {
-                                        Column(Modifier.weight(1f)) {
-                                            Spacer(Modifier.fillMaxWidth().height(43.dp))
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(6.dp))
-                            }
-                        }
+                        DetailEpisodeGrid(
+                            eps = eps, slug = slug, selectedServer = selectedServer,
+                            watchedSet = watchedSet, continueItem = continueItem,
+                            episodeSortAsc = episodeSortAsc,
+                            onToggleSort = { episodeSortAsc = !episodeSortAsc },
+                            onPlay = onPlay
+                        )
                     }
                 }
 
-                // D-5: Related movies (state hoisted to composable scope above LazyColumn — see state vars)
                 if (relatedMovies.isNotEmpty()) {
-                    item {
-                        Text(
-                            "🎞️ Có thể bạn thích",
-                            color = C.TextPrimary,
-                            fontFamily = JakartaFamily,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                        )
-                    }
-                    item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(bottom = 80.dp)
-                        ) {
-                            items(relatedMovies, key = { it.slug }) { related ->
-                                Column(
-                                    modifier = Modifier
-                                        .width(110.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .clickable { onMovieClick(related.slug) }
-                                ) {
-                                    AsyncImage(
-                                        model = ImageUtils.cardImage(related.thumbUrl, related.source),
-                                        contentDescription = related.name,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .aspectRatio(2f / 3f)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(C.Surface)
-                                    )
-                                    Text(
-                                        related.name,
-                                        color = C.TextPrimary,
-                                        fontSize = 11.sp,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    item { DetailRelatedRow(relatedMovies, onMovieClick) }
                 } else {
                     item { Spacer(Modifier.height(80.dp)) }
                 }
             }
 
-            // C-5: Playlist bottom sheet
+            // C-5: Playlist dialog
             if (showPlaylistSheet) {
-                AlertDialog(
-                    onDismissRequest = { showPlaylistSheet = false },
-                    title = { Text("📋 Thêm vào Playlist", color = C.TextPrimary) },
-                    text = {
-                        if (playlists.isEmpty()) {
-                            Text("Chưa có playlist nào. Tạo playlist trong Mục Playlist.", color = C.TextSecondary)
-                        } else {
-                            Column {
-                                playlists.forEach { pl ->
-                                    val inList = remember(playlists) {
-                                        pl.items.any { it.slug == slug }
-                                    }
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                if (inList) PlaylistManager.removeFromPlaylist(pl.id, slug)
-                                                else PlaylistManager.addToPlaylist(pl.id, slug, movie.name, movie.thumbUrl)
-                                            }
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(pl.name, color = C.TextPrimary, fontSize = 15.sp)
-                                        Text(if (inList) "✓" else "+", color = if (inList) C.Primary else C.TextSecondary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    HorizontalDivider(color = C.SurfaceVariant, thickness = 0.5.dp)
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showPlaylistSheet = false }) {
-                            Text("Xong", color = C.Primary, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    containerColor = C.Surface
+                DetailPlaylistDialog(
+                    slug = slug, movieName = movie.name, thumbUrl = movie.thumbUrl,
+                    playlists = playlists, onDismiss = { showPlaylistSheet = false }
                 )
             }
-        } // end DetailState.Success
-    } // end when
-} // end DetailScreen
+        }
+    }
+}

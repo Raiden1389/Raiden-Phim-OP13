@@ -23,7 +23,7 @@ import xyz.raidenhub.phim.data.db.entity.*
         SettingEntity::class,
         SearchHistoryEntity::class,
     ],
-    version = 2,   // v2: Added indexes on lastWatched, watched_episodes.slug
+    version = 3,   // v3: Added episodeSlug to continue_watching for Fshare resume
     exportSchema = true   // Lưu schema JSON → schemas/ folder (cần cho Room auto-migration sau này)
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -49,6 +49,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // v3: Add episodeSlug column for Fshare direct resume
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE continue_watching ADD COLUMN episodeSlug TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -59,7 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DB_NAME
                 )
-                    .addMigrations(MIGRATION_1_2)  // Safe migration — không mất data
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigration(dropAllTables = true)  // fallback nếu có version khác
                     .build()
                     .also { INSTANCE = it }

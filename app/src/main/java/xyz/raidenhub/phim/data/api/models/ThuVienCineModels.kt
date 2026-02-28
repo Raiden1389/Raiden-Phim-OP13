@@ -17,7 +17,19 @@ data class CineMovie(
     val backdropUrl: String = "",  // Fanart/backdrop (TMDB, upgraded)
     val description: String = "",  // Plot synopsis
     val rating: Float = 0f         // IMDB rating
-)
+) {
+    /** Convert to Movie for unified search results display */
+    fun toMovie(): Movie = Movie(
+        name = title,
+        slug = detailUrl,          // Use full URL as slug — DetailScreen routes by URL
+        thumbUrl = thumbnailUrl,
+        posterUrl = thumbnailUrl,
+        year = year.toIntOrNull() ?: 0,
+        quality = quality,
+        lang = "Vietsub",
+        source = "fshare"
+    )
+}
 
 /** Fshare link extracted from movie detail page */
 data class CineFshareLink(

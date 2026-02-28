@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import xyz.raidenhub.phim.data.api.models.CineMovie
-import xyz.raidenhub.phim.data.repository.ThuVienCineRepository
+import xyz.raidenhub.phim.data.repository.FshareAggregator
 import xyz.raidenhub.phim.ui.theme.C
 import xyz.raidenhub.phim.ui.theme.JakartaFamily
 
@@ -39,7 +39,7 @@ fun FshareCategoryScreen(
     onMovieClick: (String) -> Unit,  // enriched slug
     onBack: () -> Unit
 ) {
-    val repo = remember { ThuVienCineRepository() }
+    val repo = remember { FshareAggregator() }
     var movies by remember { mutableStateOf<List<CineMovie>>(emptyList()) }
     var currentPage by remember { mutableIntStateOf(0) }
     var isLoading by remember { mutableStateOf(false) }

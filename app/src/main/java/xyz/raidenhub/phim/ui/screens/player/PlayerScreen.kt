@@ -73,15 +73,12 @@ fun PlayerScreen(
             .setConnectTimeoutMs(15_000).setReadTimeoutMs(20_000).setAllowCrossProtocolRedirects(true)
         val renderersFactory = NextRenderersFactory(context)
             .setExtensionRendererMode(androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
-        // Debug: check FFmpeg native lib status
+        // Load FFmpeg native lib for EAC3/DTS support
         try {
             System.loadLibrary("media3ext")
-            android.util.Log.d("FFMPEG_STATUS", "✅ media3ext native loaded OK")
-        } catch (e: UnsatisfiedLinkError) {
-            android.util.Log.e("FFMPEG_STATUS", "❌ media3ext native FAILED: ${e.message}")
-        } catch (e: Exception) {
-            android.util.Log.e("FFMPEG_STATUS", "❌ check error: ${e.message}")
-        }
+        } catch (_: UnsatisfiedLinkError) {
+            android.util.Log.e("FFMPEG_STATUS", "media3ext native FAILED")
+        } catch (_: Exception) { }
         ExoPlayer.Builder(context, renderersFactory).setLoadControl(loadControl).setTrackSelector(trackSelector)
             .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context, httpDsf)))
             .setWakeMode(android.os.PowerManager.PARTIAL_WAKE_LOCK).setHandleAudioBecomingNoisy(true)
@@ -104,22 +101,31 @@ fun PlayerScreen(
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                // ── DEBUG: Log all tracks to diagnose no-audio bug ──
-                for (group in tracks.groups) {
-                    for (i in 0 until group.length) {
-                        val fmt = group.getTrackFormat(i)
-                        val sel = if (group.isTrackSelected(i)) "✅SEL" else "⬜"
-                        val sup = if (group.isTrackSupported(i)) "✅SUP" else "❌UNSUP"
-                        android.util.Log.d("PLAYER_TRACKS",
-                            "$sel $sup | type=${group.type} mime=${fmt.sampleMimeType} " +
-                            "codec=${fmt.codecs} ch=${fmt.channelCount} rate=${fmt.sampleRate} " +
-                            "label=${fmt.label} lang=${fmt.language}"
-                        )
-                    }
-                }
 
                 val (audio, sub) = trackManager.scanTracks()
                 audioTracks = audio; subtitleTracks = sub
+            }
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                android.util.Log.e("PlayerScreen", "═══ EXOPLAYER ERROR ═══")
+                android.util.Log.e("PlayerScreen", "Code: ${error.errorCode}, Msg: ${error.message}")
+                android.util.Log.e("PlayerScreen", "Cause: ${error.cause}")
+                error.cause?.cause?.let { root ->
+                    android.util.Log.e("PlayerScreen", "Root: ${root.javaClass.simpleName}: ${root.message}")
+                }
+
+                val isDecoderError = error.cause?.let { cause ->
+                    cause.javaClass.simpleName.contains("Decoder") ||
+                    cause.javaClass.simpleName.contains("Codec") ||
+                    cause.message?.contains("decoder", ignoreCase = true) == true
+                } ?: false
+
+                val isFshare = source == "fshare"
+                val msg = when {
+                    isDecoderError -> "⚠️ Video này không hỗ trợ (HEVC). Thử chọn bản khác!"
+                    isFshare -> "❌ Lỗi phát Fshare: ${error.cause?.message ?: error.message}"
+                    else -> "❌ Lỗi phát video: ${error.cause?.message ?: error.message}"
+                }
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
             }
         }
         player.addListener(listener)
@@ -158,7 +164,7 @@ fun PlayerScreen(
     PlaybackEndedEffect(player, source, vm)
 
     // ═══ SAVE PROGRESS ═══
-    SaveProgressEffect(player, effectiveSlug, title, source, currentEp, streamEpisode, tmdbId, episodes)
+    SaveProgressEffect(player, effectiveSlug, title, source, currentEp, streamEpisode, tmdbId, episodes, originalSlug = slug, vm = vm)
 
     // ═══ UI STATE ═══
     val ui = rememberPlayerUiState(activity, audioManager, maxVolume, player, effectiveConfig)
@@ -251,6 +257,7 @@ fun PlayerScreen(
 
     PlayerEpisodeSheet(
         showSheet = ui.showEpisodeSheet.value, episodes = episodes, currentEp = currentEp,
+        isFshare = source == "fshare",
         onEpisodeSelect = { idx -> vm.setEpisode(idx); ui.showEpisodeSheet.value = false },
         onDismiss = { ui.showEpisodeSheet.value = false }
     )

@@ -149,6 +149,7 @@ fun MovieCard(
                     .padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
+                if (movie.source == "fshare") Badge("F", Color(0xFF4CAF50))
                 if (movie.quality.isNotBlank()) Badge(movie.quality, C.Primary)
                 if (movie.lang.isNotBlank()) Badge(TextUtils.shortLang(movie.lang), C.Badge)
             }

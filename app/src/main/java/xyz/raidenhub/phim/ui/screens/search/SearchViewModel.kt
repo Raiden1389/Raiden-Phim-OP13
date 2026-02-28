@@ -7,8 +7,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import xyz.raidenhub.phim.data.api.models.Movie
 import xyz.raidenhub.phim.data.local.SearchHistoryManager
+import xyz.raidenhub.phim.data.repository.FshareAggregator
 import xyz.raidenhub.phim.data.repository.MovieRepository
 import xyz.raidenhub.phim.util.AppError
 import xyz.raidenhub.phim.util.toAppError
@@ -28,6 +30,8 @@ class SearchViewModel : ViewModel() {
     /** Cache of history list for sync access in updateSuggestions */
     private var _cachedHistory: List<String> = emptyList()
 
+    private val fshareAggregator = FshareAggregator()
+
     init {
         viewModelScope.launch {
             SearchHistoryManager.history.collect { _cachedHistory = it }
@@ -44,16 +48,36 @@ class SearchViewModel : ViewModel() {
         searchJob = viewModelScope.launch {
             delay(400) // debounce
             _loading.value = true
-            MovieRepository.search(query)
-                .onSuccess { _results.value = it }
-                .onFailure { e ->
-                    _results.value = emptyList()
+
+            // Parallel: ophim + fshare
+            val ophimDeferred = async {
+                MovieRepository.search(query).getOrNull().orEmpty()
+            }
+            val fshareDeferred = async {
+                try { fshareAggregator.search(query).map { it.toMovie() } }
+                catch (_: Exception) { emptyList() }
+            }
+
+            val ophimResults = ophimDeferred.await()
+            val fshareResults = fshareDeferred.await()
+
+            if (ophimResults.isEmpty() && fshareResults.isEmpty()) {
+                _results.value = emptyList()
+                // Only show error for network issues
+                MovieRepository.search(query).onFailure { e ->
                     val err = e.toAppError()
-                    // Chỉ show error khi NetworkError — ParseError silently ignored
-                    if (err is AppError.NetworkError) {
-                        _error.value = err.userMessage
-                    }
+                    if (err is AppError.NetworkError) _error.value = err.userMessage
                 }
+            } else {
+                // Merge: ophim first, then fshare (deduped by normalized name)
+                val seen = ophimResults.map { it.name.lowercase().trim() }.toMutableSet()
+                val merged = ophimResults.toMutableList()
+                fshareResults.forEach { movie ->
+                    val key = movie.name.lowercase().trim()
+                    if (key !in seen) { merged.add(movie); seen.add(key) }
+                }
+                _results.value = merged
+            }
             _loading.value = false
         }
     }

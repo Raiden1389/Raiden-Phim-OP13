@@ -69,3 +69,11 @@
 
 # ══ Glance (Widget) ══
 -dontwarn androidx.glance.**
+
+# ══ Strip Debug/Verbose Logs in Release ══
+# Removes Log.d() and Log.v() calls from release APK
+# Keeps Log.e() and Log.w() for crash/error reporting
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}

@@ -19,6 +19,7 @@ data class ContinueWatchingEntity(
     val source: String = "ophim",
     val episodeIdx: Int = 0,
     val episodeName: String = "",
+    val episodeSlug: String = "",       // Fshare episode URL for direct resume
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val lastWatched: Long = System.currentTimeMillis()

@@ -217,7 +217,7 @@ fun AppNavigation() {
                             navController.navigate(Screen.Detail.createRoute(slug))
                         }
                     },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
@@ -231,7 +231,7 @@ fun AppNavigation() {
                 MainTabsContent(
                     pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
@@ -245,7 +245,7 @@ fun AppNavigation() {
                 MainTabsContent(
                     pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
@@ -259,7 +259,7 @@ fun AppNavigation() {
                 MainTabsContent(
                     pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onFshareClick = { fshareSlug -> navController.navigate(Screen.FshareDetail.createRoute(fshareSlug)) },
@@ -275,7 +275,7 @@ fun AppNavigation() {
                 MainTabsContent(
                     pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onBack = { navController.popBackStack() },
@@ -287,7 +287,7 @@ fun AppNavigation() {
                 MainTabsContent(
                     pagerState = pagerState,
                     onMovieClick = { slug -> navController.navigate(Screen.Detail.createRoute(slug)) },
-                    onContinue = { slug, server, ep, positionMs, source -> startPlayerActivity(slug, server, ep, positionMs, source) },
+                    onContinue = { slug, server, ep, positionMs, source, fshareEpSlug -> startPlayerActivity(slug, server, ep, positionMs, source, fshareEpSlug) },
                     onCategoryClick = { s, title -> navController.navigate(Screen.Category.createRoute(s, title)) },
                     onSuperStreamItemClick = { tmdbId, type -> navController.navigate(Screen.SuperStreamDetail.createRoute(tmdbId, type)) },
                     onBack = { navController.popBackStack() },
@@ -483,7 +483,7 @@ private val navItems = listOf(
 private fun MainTabsContent(
     pagerState: androidx.compose.foundation.pager.PagerState,
     onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit,
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String, fshareEpSlug: String) -> Unit,
     onCategoryClick: (String, String) -> Unit,
     onSuperStreamItemClick: (tmdbId: Int, type: String) -> Unit,
     onFshareClick: (String) -> Unit = {},
@@ -520,7 +520,7 @@ private fun MainTabsContent(
             4 -> WatchHistoryScreen(
                 onBack = onBack,
                 onMovieClick = onMovieClick,
-                onContinue = { slug, server, ep, source -> onContinue(slug, server, ep, 0L, source) },
+                onContinue = { slug, server, ep, source -> onContinue(slug, server, ep, 0L, source, "") },
                 onWatchlistClick = onWatchlistClick,
                 onPlaylistClick = onPlaylistClick
             )

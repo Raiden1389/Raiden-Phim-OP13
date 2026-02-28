@@ -1,6 +1,7 @@
 package xyz.raidenhub.phim.ui.screens.fshare
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewModelScope
@@ -8,9 +9,11 @@ import kotlinx.coroutines.launch
 import xyz.raidenhub.phim.data.api.models.Category
 import xyz.raidenhub.phim.data.api.models.Episode
 import xyz.raidenhub.phim.data.api.models.EpisodeServer
+import xyz.raidenhub.phim.data.api.models.FshareFile
 import xyz.raidenhub.phim.data.api.models.MovieDetail
 import xyz.raidenhub.phim.data.repository.FshareAuthException
 import xyz.raidenhub.phim.data.repository.FshareRepository
+import xyz.raidenhub.phim.data.repository.FshareAggregator
 import xyz.raidenhub.phim.data.repository.ThuVienCineRepository
 
 /**
@@ -25,7 +28,7 @@ import xyz.raidenhub.phim.data.repository.ThuVienCineRepository
 class FshareDetailViewModel(application: android.app.Application) :
     androidx.lifecycle.AndroidViewModel(application) {
 
-    private val cineRepo = ThuVienCineRepository()
+    private val fshareHub = FshareAggregator()
     private val fshareRepo = FshareRepository.getInstance(application)
 
     // ═══ UI State ═══
@@ -46,9 +49,21 @@ class FshareDetailViewModel(application: android.app.Application) :
     var folderError by mutableStateOf<String?>(null)
         private set
 
-    /** True when episode list contains only the folder placeholder */
+    /** True when episode list contains only folder entries */
     val isFolderPlaceholder: Boolean
         get() = episodes.firstOrNull()?.serverData?.firstOrNull()?.slug == FOLDER_SLUG
+
+    /** Folder navigation stack — for Back button support */
+    private val folderStack = mutableListOf<List<EpisodeServer>>()
+    private var folderDepth by mutableIntStateOf(0)
+    val canNavigateBack: Boolean get() = folderDepth > 0
+
+    fun navigateBack(): Boolean {
+        if (folderStack.isEmpty()) return false
+        episodes = folderStack.removeLast()
+        folderDepth = folderStack.size
+        return true
+    }
 
     private var loadedUrl = ""
 
@@ -68,7 +83,7 @@ class FshareDetailViewModel(application: android.app.Application) :
                 isLoading = true
                 error = null
 
-                val detail = cineRepo.getDetailWithFshare(detailUrl)
+                val detail = fshareHub.getDetailWithFshare(detailUrl)
                 val fshareLink = detail.fshareLink
                 fshareUrl = fshareLink?.folderUrl
 
@@ -118,22 +133,19 @@ class FshareDetailViewModel(application: android.app.Application) :
         }
     }
 
+    /**
+     * Try listing folder contents — shows subfolders as clickable items
+     */
     private suspend fun tryListFolder(folderUrl: String): List<Episode> {
         return try {
-            val files = fshareRepo.listFolder(folderUrl)
-                .filter { it.isVideo }
-                .sortedBy { it.name }
-            if (files.isNotEmpty()) {
-                files.map { file ->
-                    Episode(
-                        name = "${file.episodeLabel} · ${file.quality} · ${file.sizeFormatted}",
-                        slug = file.furl,
-                        linkEmbed = file.furl,
-                        linkM3u8 = file.furl
-                    )
-                }
-            } else {
-                listOf(folderPlaceholder(folderUrl, "📁 Folder trống"))
+            val items = fshareRepo.listFolder(folderUrl)
+            val videoFiles = items.filter { it.isVideo }.sortedBy { it.name }
+            val subFolders = items.filter { it.isFolder }.sortedBy { it.name }
+
+            when {
+                videoFiles.isNotEmpty() -> FshareFile.toEpisodes(videoFiles)
+                subFolders.isNotEmpty() -> subFolders.map { folderEntry(it) }
+                else -> listOf(folderPlaceholder(folderUrl, "📁 Folder trống"))
             }
         } catch (e: FshareAuthException) {
             listOf(folderPlaceholder(folderUrl, "📁 Bấm để đăng nhập & xem"))
@@ -141,6 +153,14 @@ class FshareDetailViewModel(application: android.app.Application) :
             listOf(folderPlaceholder(folderUrl, "📁 Bấm để mở folder"))
         }
     }
+
+    /** Create a clickable folder entry */
+    private fun folderEntry(file: FshareFile) = Episode(
+        name = "📁 ${file.name}",
+        slug = FOLDER_SLUG,
+        linkEmbed = file.furl,
+        linkM3u8 = file.furl
+    )
 
     private fun folderPlaceholder(url: String, label: String) = Episode(
         name = label,
@@ -150,39 +170,43 @@ class FshareDetailViewModel(application: android.app.Application) :
     )
 
     /**
-     * Expand folder: auto-login → list files → replace placeholder with real episodes
+     * Expand/open a folder: list contents → show subfolders or video files.
+     * @param folderUrl folder URL to open (null = use root fshareUrl)
      */
-    fun expandFolder() {
-        val url = fshareUrl ?: return
+    fun expandFolder(folderUrl: String? = null) {
+        val url = folderUrl ?: fshareUrl ?: return
         if (isFolderExpanding) return
+
+        // Save current state for Back navigation
+        if (episodes.isNotEmpty()) {
+            folderStack.add(episodes)
+            folderDepth = folderStack.size
+        }
 
         viewModelScope.launch {
             isFolderExpanding = true
             folderError = null
             try {
-                val files = fshareRepo.listFolder(url)
-                    .filter { it.isVideo }
-                    .sortedBy { it.name }
+                val items = fshareRepo.listFolder(url)
+                val videoFiles = items.filter { it.isVideo }.sortedBy { it.name }
+                val subFolders = items.filter { it.isFolder }.sortedBy { it.name }
 
-                if (files.isEmpty()) {
-                    folderError = "Folder trống hoặc không có video"
-                    isFolderExpanding = false
-                    return@launch
-                }
-
-                val episodeList = files.map { file ->
-                    Episode(
-                        name = "${file.episodeLabel} · ${file.quality} · ${file.sizeFormatted}",
-                        slug = file.furl,
-                        linkEmbed = file.furl,
-                        linkM3u8 = file.furl
-                    )
+                val episodeList = when {
+                    videoFiles.isNotEmpty() -> FshareFile.toEpisodes(videoFiles)
+                    subFolders.isNotEmpty() -> subFolders.map { folderEntry(it) }
+                    else -> {
+                        folderError = "Folder trống hoặc không có video"
+                        isFolderExpanding = false
+                        return@launch
+                    }
                 }
 
                 episodes = listOf(
                     EpisodeServer(serverName = "Fshare HD", serverData = episodeList)
                 )
-                movie = movie?.copy(episodeCurrent = "${files.size} tập")
+
+                val count = if (videoFiles.isNotEmpty()) "${videoFiles.size} tập" else "${subFolders.size} thư mục"
+                movie = movie?.copy(episodeCurrent = count)
 
             } catch (e: FshareAuthException) {
                 folderError = "Chưa đăng nhập Fshare. Vào Cài đặt → Fshare để đăng nhập."

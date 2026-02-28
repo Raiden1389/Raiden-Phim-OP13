@@ -229,7 +229,7 @@ fun MovieRowSection(
     title: String,
     movies: List<Movie>,
     onMovieClick: (String) -> Unit,
-    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String) -> Unit,
+    onContinue: (slug: String, server: Int, episode: Int, positionMs: Long, source: String, fshareEpSlug: String) -> Unit,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
     onSeeMore: () -> Unit
 ) {
@@ -322,7 +322,7 @@ fun MovieRowSection(
                                 onClick = { onMovieClick(movie.slug) },
                                 onLongClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onContinue(movie.slug, 0, 0, 0L, "ophim")
+                                    onContinue(movie.slug, 0, 0, 0L, "ophim", "")
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             )

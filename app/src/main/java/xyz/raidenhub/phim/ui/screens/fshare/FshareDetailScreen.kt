@@ -74,6 +74,11 @@ fun FshareDetailScreen(
         }
     }
 
+    // Intercept Back when inside subfolder → go back to parent folder
+    androidx.activity.compose.BackHandler(enabled = viewModel.canNavigateBack) {
+        viewModel.navigateBack()
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(C.Background)) {
         when {
             viewModel.isLoading -> {
@@ -270,7 +275,7 @@ private fun FshareDetailContent(
                 isFolderExpanding = viewModel.isFolderExpanding,
                 folderError = viewModel.folderError,
                 slug = enrichedSlug,
-                onFolderClick = { viewModel.expandFolder() },
+                onFolderClick = { url -> viewModel.expandFolder(url) },
                 onEpisodeClick = onEpisodeClick
             )
 

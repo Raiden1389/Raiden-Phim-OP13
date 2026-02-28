@@ -89,18 +89,47 @@ fun SaveProgressEffect(
     streamEpisode: Int,
     tmdbId: Int,
     episodes: List<xyz.raidenhub.phim.data.api.models.Episode>,
+    originalSlug: String = "",
+    vm: xyz.raidenhub.phim.ui.screens.player.PlayerViewModel? = null,
 ) {
+    // rememberUpdatedState: keeps latest value accessible inside onDispose
+    // Without this, DisposableEffect(Unit) captures INITIAL values only!
+    val latestCurrentEp by androidx.compose.runtime.rememberUpdatedState(currentEp)
+    val latestEpisodes by androidx.compose.runtime.rememberUpdatedState(episodes)
+    val latestTitle by androidx.compose.runtime.rememberUpdatedState(title)
+    val latestEffectiveSlug by androidx.compose.runtime.rememberUpdatedState(effectiveSlug)
+
     DisposableEffect(Unit) {
         onDispose {
             val pos = player.currentPosition
             val dur = player.duration
             if (dur > 0 && pos > 0) {
-                val saveEpIdx = if (source == "superstream") (streamEpisode - 1).coerceAtLeast(0) + currentEp else currentEp
-                val epName = cleanEpName(episodes.getOrNull(currentEp)?.name ?: "Tập ${saveEpIdx + 1}")
+                val saveEpIdx = if (source == "superstream") (streamEpisode - 1).coerceAtLeast(0) + latestCurrentEp else latestCurrentEp
+                val epName = cleanEpName(latestEpisodes.getOrNull(latestCurrentEp)?.name ?: "Tập ${saveEpIdx + 1}")
+
+                // Fshare: ensure enriched slug format for future resume
+                val saveSlug = if (source == "fshare") {
+                    if ("|||" in originalSlug) {
+                        originalSlug  // Already enriched: "fshare-folder:URL|||NAME|||THUMB"
+                    } else {
+                        // Reconstruct enriched slug from VM data (breaks corruption cycle)
+                        val rawUrl = originalSlug.removePrefix("fshare:").removePrefix("fshare-folder:").removePrefix("fshare-file:")
+                        val poster = vm?.getFsharePosterUrl() ?: ""
+                        "fshare-file:$rawUrl|||${latestTitle}|||$poster"
+                    }
+                } else latestEffectiveSlug
+                val thumbUrl = if (source == "fshare") (vm?.getFsharePosterUrl() ?: "") else ""
+                // Strip "fshare:" prefix from episodeSlug — raw URL only
+                val episodeSlug = if (source == "fshare") {
+                    (latestEpisodes.getOrNull(latestCurrentEp)?.slug ?: "")
+                        .removePrefix("fshare:")
+                } else ""
+
                 WatchHistoryManager.updateContinue(
-                    slug = effectiveSlug, name = title, thumbUrl = "", source = source,
+                    slug = saveSlug, name = latestTitle, thumbUrl = thumbUrl, source = source,
                     episodeIdx = saveEpIdx, episodeName = epName,
-                    positionMs = pos, durationMs = dur
+                    positionMs = pos, durationMs = dur,
+                    episodeSlug = episodeSlug
                 )
                 if (source == "superstream" && tmdbId > 0 && pos.toFloat() / dur >= 0.70f) {
                     WatchHistoryManager.markWatched("ss_tv_$tmdbId", saveEpIdx)
@@ -110,3 +139,4 @@ fun SaveProgressEffect(
         }
     }
 }
+

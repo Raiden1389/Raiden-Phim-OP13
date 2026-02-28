@@ -124,7 +124,7 @@ class PlayerViewModel : ViewModel() {
         fsSlug = movieSlug
         viewModelScope.launch {
             try {
-                val result = FsharePlayerLoader.load(context, movieSlug, episodeSlug)
+                val result = FsharePlayerLoader.load(context, movieSlug, episodeSlug, epIdx)
                 _title.value = result.movieName
                 fsPosterUrl = result.posterUrl
                 _episodes.value = result.episodes
@@ -204,6 +204,7 @@ fun smartEpLabel(name: String, fallbackIdx: Int): String {
     val clean = cleanEpName(name.ifBlank { "${fallbackIdx + 1}" })
     return if (clean.startsWith("Tập", ignoreCase = true) ||
         clean.startsWith("Episode", ignoreCase = true) ||
+        clean.startsWith("▶") ||
         clean.first().isDigit()
     ) clean else "Tập $clean"
 }

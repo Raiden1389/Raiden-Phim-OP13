@@ -1,5 +1,69 @@
 # Raiden Phim — Changelog
 
+## v1.23.0 — 2026-03-01 (Fshare Search + DetailScreen Refactor)
+
+**Top Impact**: Fshare search integration • F badge on search results • DetailScreen 847→220 LOC refactor • Wrap-up squash workflow
+
+### Added
+- **[Search]** Fshare search — `SearchViewModel.search()` runs ophim + `FshareAggregator.search()` in parallel via `async/await`
+- **[Search]** `CineMovie.toMovie()` extension — converts Fshare movie data to unified `Movie` model (source="fshare")
+- **[UI]** Green "F" badge on `MovieCard` for Fshare-sourced results (`movie.source == "fshare"`)
+- **[Search]** Result merging — ophim results first, then Fshare results, dedup by normalized title (`seen` set)
+
+### Changed
+- **[Refactor]** `DetailScreen.kt` — 847→220 LOC orchestrator, extracted 7 component files:
+  - `DetailAnimations.kt` — `AnimatedIntCounter` + `AnimatedFloatCounter` (45 LOC)
+  - `DetailBackdrop.kt` — Parallax backdrop + gradient + back button + title overlay (95 LOC)
+  - `DetailActionRow.kt` — Play/Continue + Favorite + Watchlist + Playlist buttons (95 LOC)
+  - `DetailInfoSection.kt` — Ratings, genres, cast, director, description (180 LOC)
+  - `DetailEpisodeGrid.kt` — Server tabs + episode grid with progress bars (130 LOC)
+  - `DetailSeasonRow.kt` — Season grouping chips row (70 LOC)
+  - `DetailRelatedRow.kt` — Related movies horizontal row (70 LOC)
+  - `DetailPlaylistDialog.kt` — Playlist selection dialog (60 LOC)
+- **[Workflow]** Wrap-up step 5 — "Git Commit & Push" → "Git Squash, Commit & Push" (clean history before push)
+
+### Files Modified
+- `SearchViewModel.kt` — parallel search ophim+Fshare, dedup merge
+- `ThuVienCineModels.kt` — `CineMovie.toMovie()` extension
+- `MovieCard.kt` — Fshare "F" badge
+- `DetailScreen.kt` — rewritten as thin orchestrator (220 LOC)
+- `DetailAnimations.kt` — **NEW** extracted animated counters
+- `DetailBackdrop.kt` — **NEW** extracted parallax backdrop
+- `DetailActionRow.kt` — **NEW** extracted action buttons
+- `DetailInfoSection.kt` — **NEW** extracted info section
+- `DetailEpisodeGrid.kt` — **NEW** extracted episode grid
+- `DetailSeasonRow.kt` — **NEW** extracted season row
+- `DetailRelatedRow.kt` — **NEW** extracted related movies
+- `DetailPlaylistDialog.kt` — **NEW** extracted playlist dialog
+- `global_workflows/wrap-up.md` — squash step added
+
+---
+
+## v1.22.3 — 2026-02-28 (Fshare Subfolder Browsing)
+
+**Top Impact**: Subfolder browsing file-browser UX • Folder nav stack with Back • Unique key crash fix
+
+### Added
+- **[Fshare]** Subfolder browsing — detail screen shows 📁 subfolder entries as clickable items, click to drill in, Back to go up (file browser UX)
+- **[Fshare]** Folder navigation stack — `folderStack` + `folderDepth` (`mutableIntStateOf` for Compose reactivity) + `BackHandler` intercepts Back within subfolders
+- **[Fshare]** `folderEntry()` helper — creates Episode with 📁 prefix + FOLDER_SLUG for subfolder items
+
+### Changed
+- **[Fshare]** `FshareDetailViewModel.expandFolder(folderUrl)` — now accepts optional URL param for subfolder navigation
+- **[Fshare]** `FshareEpisodePanel.onFolderClick` — `() -> Unit` → `(folderUrl: String) -> Unit`
+- **[Fshare]** `tryListFolder()` — shows subfolders when folder contains only subfolders (not recursive flatten)
+
+### Fixed
+- **[Crash]** `IllegalArgumentException: Key "fshare-folder" was already used` — `LazyVerticalGrid`/`LazyColumn` key duplicated when multiple subfolders. Fix: key = `"${slug}_$index"`
+- **[Bug]** Back not exiting detail — `folderStack` was `mutableListOf` (not Compose state) → `canNavigateBack` getter didn't trigger recomposition → `BackHandler` stuck enabled. Fix: `mutableIntStateOf(folderDepth)`
+
+### Files Modified
+- `FshareDetailViewModel.kt` — `folderEntry()`, `expandFolder(url)`, `folderStack` + `folderDepth`, `navigateBack()`, subfolder-aware `tryListFolder()`
+- `FshareDetailScreen.kt` — `BackHandler(enabled = canNavigateBack)`, `onFolderClick` URL passthrough
+- `FshareEpisodePanel.kt` — `onFolderClick: (String) -> Unit`, unique key `"${slug}_$index"` / `"${slug}_g$index"`
+
+---
+
 ## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
 
 **Top Impact**: FFmpeg audio decoder cho MKV/EAC3 • Episode name cleanup • Subtitle dialog redesign

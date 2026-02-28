@@ -46,8 +46,9 @@ fun SourceLoadEffect(
                 val epSlug = fshareEpSlug.ifBlank {
                     slug.split("|||").firstOrNull()
                         ?.removePrefix("fshare-folder:")
-                        ?.removePrefix("fshare-file:") ?: slug
-                }
+                        ?.removePrefix("fshare-file:")
+                        ?.removePrefix("fshare:") ?: slug
+                }.removePrefix("fshare:")  // Strip prefix from corrupted DB entries
                 vm.loadFshare(context, slug, epSlug, episode)
             }
             else -> vm.load(slug, server, episode)
@@ -109,7 +110,6 @@ fun PlayMediaEffect(
             val ep = episodes.getOrNull(currentEp) ?: return@LaunchedEffect
             val url = ep.linkM3u8
             if (url.isNotBlank() && url != lastLoadedUrl) {
-                android.util.Log.d("PLAY_MEDIA", "Loading ep=$currentEp url=${url.take(80)}")
                 player.setMediaItem(MediaItem.fromUri(url))
                 player.prepare()
                 if (!hasSeekOnce && startPositionMs > 0L && currentEp == startEpisode) {

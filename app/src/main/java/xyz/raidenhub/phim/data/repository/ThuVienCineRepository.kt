@@ -31,7 +31,12 @@ import java.text.Normalizer
  *   search(query) → [CineMovie]
  *   getFshareLink(detailUrl) → CineFshareLink (fshare.vn/folder/XXX)
  */
-class ThuVienCineRepository {
+class ThuVienCineRepository : FshareSource {
+
+    override val sourceId = "cine"
+    override val domain = "thuviencine.com"
+    override val homeMoviesUrl = "$BASE/movies/"
+    override val homeSeriesUrl = "$BASE/tv-series/"
 
     // ═══ Movie Listings ═══
 
@@ -40,7 +45,7 @@ class ThuVienCineRepository {
      * @param categoryUrl e.g. "https://thuviencine.com/movies/"
      * @param page 1-based page number
      */
-    suspend fun getMovies(categoryUrl: String, page: Int = 1): List<CineMovie> =
+    override suspend fun getMovies(categoryUrl: String, page: Int): List<CineMovie> =
         withContext(Dispatchers.IO) {
             try {
                 val url = if (page > 1) "${categoryUrl.trimEnd('/')}/page/$page/" else categoryUrl
@@ -55,7 +60,7 @@ class ThuVienCineRepository {
     /**
      * Search movies by keyword
      */
-    suspend fun search(query: String): List<CineMovie> = withContext(Dispatchers.IO) {
+    override suspend fun search(query: String): List<CineMovie> = withContext(Dispatchers.IO) {
         try {
             val doc = fetchDocument("$BASE/?s=$query")
             parseMovieList(doc)
@@ -83,7 +88,7 @@ class ThuVienCineRepository {
     /**
      * Scrape detail page for movie info + Fshare link (1 request)
      */
-    suspend fun getDetailWithFshare(detailUrl: String): CineDetailResult =
+    override suspend fun getDetailWithFshare(detailUrl: String): CineDetailResult =
         withContext(Dispatchers.IO) {
             val doc = fetchDocument(detailUrl)
 

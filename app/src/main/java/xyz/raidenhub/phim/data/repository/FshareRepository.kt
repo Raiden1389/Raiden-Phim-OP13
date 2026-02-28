@@ -47,7 +47,10 @@ class FshareRepository private constructor(private val context: Context) {
     private var sessionId: String? = null
     private var userInfo: FshareUserInfo? = null
 
-    /** Encrypted preferences for storing credentials */
+    /** Encrypted preferences for storing credentials.
+     * Handles corruption after reinstall: keystore resets but prefs file persists → decrypt fails.
+     * Fix: detect corruption, delete corrupt file, recreate clean prefs.
+     */
     private val prefs: SharedPreferences by lazy {
         try {
             val masterKey = MasterKey.Builder(context)
@@ -57,10 +60,33 @@ class FshareRepository private constructor(private val context: Context) {
                 context, PREF_FILE, masterKey,
                 EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
+            ).also {
+                // Verify prefs are readable (detects corruption early)
+                try { it.all } catch (e: Exception) {
+                    Log.w(TAG, "EncryptedPrefs corrupt, will recreate", e)
+                    throw e  // fall through to catch block
+                }
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "EncryptedPrefs failed, fallback to regular", e)
-            context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
+            Log.w(TAG, "EncryptedPrefs failed, clearing and recreating", e)
+            // Delete corrupt prefs file and recreate
+            try {
+                val prefsFile = java.io.File(context.filesDir.parent, "shared_prefs/${PREF_FILE}.xml")
+                if (prefsFile.exists()) prefsFile.delete()
+            } catch (_: Exception) {}
+            try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context, PREF_FILE, masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+            } catch (e2: Exception) {
+                Log.w(TAG, "EncryptedPrefs still failed, fallback to regular", e2)
+                context.getSharedPreferences(PREF_FILE, Context.MODE_PRIVATE)
+            }
         }
     }
 

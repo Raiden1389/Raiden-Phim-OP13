@@ -4,19 +4,68 @@
 
 ---
 
-## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
+## v1.23.0 — 2026-03-01 (Fshare Search + DetailScreen Refactor)
+
+**Top Impact**: Fshare search integration • F badge on search results • DetailScreen 847→220 LOC refactor • Wrap-up squash workflow
 
 ### Added
-- FFmpeg audio decoder — hỗ trợ AC3, EAC3, DTS, TrueHD qua software decode (MKV files có tiếng)
+- Fshare search — `SearchViewModel.search()` runs ophim + `FshareAggregator.search()` in parallel via `async/await`
+- `CineMovie.toMovie()` extension — converts Fshare movie data to unified `Movie` model (source="fshare")
+- Green "F" badge on `MovieCard` for Fshare-sourced results (`movie.source == "fshare"`)
+- Result merging — ophim results first, then Fshare results, dedup by normalized title (`seen` set)
 
 ### Changed
-- Subtitle dialog redesign — glassmorphism style giống Audio dialog
-- Tắt R8 minify — build nhanh hơn ~3-4x
+- `DetailScreen.kt` — 847→220 LOC orchestrator, extracted 7 component files:
+- `DetailAnimations.kt` — `AnimatedIntCounter` + `AnimatedFloatCounter` (45 LOC)
+- `DetailBackdrop.kt` — Parallax backdrop + gradient + back button + title overlay (95 LOC)
+- `DetailActionRow.kt` — Play/Continue + Favorite + Watchlist + Playlist buttons (95 LOC)
+- `DetailInfoSection.kt` — Ratings, genres, cast, director, description (180 LOC)
+- `DetailEpisodeGrid.kt` — Server tabs + episode grid with progress bars (130 LOC)
+- `DetailSeasonRow.kt` — Season grouping chips row (70 LOC)
+- `DetailRelatedRow.kt` — Related movies horizontal row (70 LOC)
+
+---
+
+## v1.22.3 — 2026-02-28 (Fshare Subfolder Browsing)
+
+**Top Impact**: Subfolder browsing file-browser UX • Folder nav stack with Back • Unique key crash fix
+
+### Added
+- Subfolder browsing — detail screen shows 📁 subfolder entries as clickable items, click to drill in, Back to go up (file browser UX)
+- Folder navigation stack — `folderStack` + `folderDepth` (`mutableIntStateOf` for Compose reactivity) + `BackHandler` intercepts Back within subfolders
+- `folderEntry()` helper — creates Episode with 📁 prefix + FOLDER_SLUG for subfolder items
+
+### Changed
+- `FshareDetailViewModel.expandFolder(folderUrl)` — now accepts optional URL param for subfolder navigation
+- `FshareEpisodePanel.onFolderClick` — `() -> Unit` → `(folderUrl: String) -> Unit`
+- `tryListFolder()` — shows subfolders when folder contains only subfolders (not recursive flatten)
 
 ### Fixed
-- Episode name "Tập 5 . 1080 3,3 GB" → "Tập 5" (bỏ quality/size)
-- Episode button hiện "Tập Tập 5" → "Tập 5" (bỏ duplicate prefix)
-- Auto-play khi mở tập — bỏ conflict audio focus
+- `IllegalArgumentException: Key "fshare-folder" was already used` — `LazyVerticalGrid`/`LazyColumn` key duplicated when multiple subfolders. Fix: key = `"${slug}_$index"`
+- Back not exiting detail — `folderStack` was `mutableListOf` (not Compose state) → `canNavigateBack` getter didn't trigger recomposition → `BackHandler` stuck enabled. Fix: `mutableIntStateOf(folderDepth)`
+
+---
+
+## v1.22.1 — 2026-02-27 (FFmpeg Audio + Player Polish)
+
+**Top Impact**: FFmpeg audio decoder cho MKV/EAC3 • Episode name cleanup • Subtitle dialog redesign
+
+### Added
+- `nextlib-media3ext` integration — software decode AC3, EAC3, DTS, TrueHD, FLAC, Vorbis, Opus
+- `NextRenderersFactory` thay `DefaultRenderersFactory` + `EXTENSION_RENDERER_MODE_PREFER`
+- Media3 1.9.2 → 1.9.1 (match nextlib dependency)
+- Native libs: `libavcodec.so`, `libmedia3ext.so`, `libswresample.so`, `libswscale.so` (arm64/armeabi/x86/x86_64)
+
+### Changed
+- `PlayerSubtitleDialog` — AlertDialog → glassmorphism overlay (match Audio `TrackSelectionDialog` style)
+- Tách `PlayerOnlineSubtitles.kt` — online search logic riêng biệt
+- Shared components: `SubtitleRow`, `SectionHeader` (internal)
+
+### Fixed
+- Episode name hiện "Tập 5 . 1080 3,3 GB" → "Tập 5" (strip quality/size suffix)
+- Episode list trigger hiện "Tập Tập 5" → "Tập 5" (fix double prefix)
+- Auto-play fix — bỏ duplicate `AudioFocusEffect` (ExoPlayer handles via `setAudioAttributes` internally)
+- Tắt R8 minify + shrink resources → build nhanh hơn ~3-4x
 
 ---
 
@@ -70,61 +119,6 @@
 - **Bonus:** card/shimmer/detail cùng 1 URL → Coil cache hit 100%, ảnh không fetch lại khi mở detail
 - **Force API cache interceptor** — Override server `no-cache/no-store` headers → cache API response 5 phút
 - **Coil cache tăng:** memory 50→80MB, disk 200→400MB
-
----
-
-## v1.20.6 — 2026-02-23 (Visual Polish + Scope Lock + UX Fixes)
-
-### Changed
-- Rating IMDb/TMDB: count-up animation từ 0.0 → giá trị thực (`AnimatedFloatCounter`, 1s)
-- Năm phát hành: count-up `AnimatedIntCounter` (0.9s), `FastOutSlowInEasing`
-- Premium feel mỗi lần mở Detail screen
-- 20 thể loại có gradient riêng biệt: Hành Động (đỏ cam), Kinh Dị (tím đen), Tình Cảm (hồng), Tâm Lý (xanh dương)...
-- `GenreColors.kt` — util map `slug → GenrePalette(start, end, label)`
-- GenreHub cards: gradient background thay vì flat `C.Surface`, text trắng
-- Dễ reuse cho CategoryScreen header, SearchScreen chips sau
-- 4 kiểu bo góc: **Bo mềm** (16dp iOS) / **Bo nhẹ** (8dp Android default) / **Vuông** (2dp cinematic) / **Nghệ** (asymmetric 0/12/12/0)
-
-### Fixed
-- **Root cause:** Race condition giữa 2 `LaunchedEffect` — `currentPage` update trước khi animation xong → `animateScrollToPage()` kéo pager ngược chiều
-- **Fix:** Thay `LaunchedEffect(currentPage, isScrollInProgress)` bằng **`LaunchedEffect(settledPage)`** — chỉ fire sau khi animation hoàn toàn xong
-- Đọc `currentNavRoute` trực tiếp từ `navController.currentBackStackEntry` thay vì stale closure
-- Thêm guard `!isScrollInProgress` trong Nav→Pager sync để tránh fight khi user đang swipe
-- **Root cause:** Compose known bug với `combinedClickable(onClick + onDoubleClick)` — đôi khi fire cả 2 cùng lúc → navigate to detail AND show popup đồng thời
-- **Fix:** Tách double-tap thành **`pointerInput { detectTapGestures }`** riêng với timestamp tracking (threshold 300ms)
-- `combinedClickable` chỉ còn `onClick` + `onLongClick` — không có conflict
-- Jank eliminated: 3 animations (press scale + popup + navigate) không còn chạy song song
-
----
-
-## v1.20.5 — 2026-02-22 (Micro-UX Batch: Swipe, Popup, Stats, Menu)
-
-### Changed
-- **HorizontalPager 5 tab** bọc toàn bộ main screens (Home, English, Search, History, Settings)
-- Sync **2 chiều**: swipe → `NavController.navigate()`, tap tab icon → `pagerState.animateScrollToPage()`
-- `beyondViewportPageCount = 1` để preload tab kế tiếp, không lag khi swipe
-- Non-tab routes (Detail, Player, Category...) vẫn dùng `NavHost` bình thường
-- **Double-click bất kỳ MovieCard** → Dialog popup thay vì phải vào Detail screen
-- Popup: Poster 16:9 với gradient overlay, badges row (quality + lang + year), tên phim
-- Info: country, `episodeCurrent`, action buttons ▶️ Xem / ❤️ Favorite / 🔖 Watchlist
-- Dismiss bằng click ngoài popup
-
-### Fixed
-- **MovieCard** — xóa `onLongClick` param dư, replace bằng internal `showContextMenu` state
-- **HomeComponents.kt** — `originName` không tồn tại trên `Movie` → `year + country.first().name`
-
----
-
-## v1.20.2 — 2026-02-22 (Room DB Migration — Phase 3 Fix)
-
-### Breaking/Migration
-- **`PlayerScreen`** — `saveProgress()` → `updateContinue()` với params đúng (API rename)
-- **`SearchViewModel`** — `history.value` (invalid trên Room Flow) → `_cachedHistory` pattern (collect trong `init {}`, cache cho sync access)
-- **`SearchViewModel`** — `.distinct()` (Flow operator) → `.distinctBy { }` (List operator)
-- **`SearchScreen`** — Remove `LaunchedEffect { init(context) }` — SearchHistoryManager đã init qua App.kt
-- **`SettingsManager`** — Xoá `FavoriteManager/WatchHistoryManager/WatchlistManager/PlaylistManager.init(context)` cũ trong `restoreFromJson` (Room managers không reinit bằng Context)
-- **`SuperStreamDetailScreen`** — `watchedEps.collectAsState()` (field không tồn tại) → `getWatchedEpisodes(slug).collectAsState(initial = emptyList())`
-- **`HeroFilterManager.hiddenCount`** — Dùng như `Int` → `Flow<Int>.collectAsState(initial = 0)`
 
 ---
 

@@ -21,8 +21,8 @@ android {
         applicationId = "xyz.raidenhub.phim"
         minSdk = 24
         targetSdk = 35
-        versionCode = 66
-        versionName = "1.22.1"
+        versionCode = 69
+        versionName = "1.23.0"
 
         // ═══ API Keys từ local.properties (không hardcode trong source) ═══
         buildConfigField("String", "TMDB_API_KEY", "\"${localProp("tmdb.api.key")}\"")
@@ -50,8 +50,8 @@ android {
             applicationIdSuffix = ".debug"  // Cài song song với bản release, không đè
         }
         release {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -182,4 +182,7 @@ dependencies {
 
     // ═══ Debug ═══
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // ═══ Tests ═══
+    testImplementation("junit:junit:4.13.2")
 }
